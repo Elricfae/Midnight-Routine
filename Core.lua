@@ -23,6 +23,20 @@ local DEFAULTS = {
         moduleOrder     = {},
         position        = { point = "CENTER", x = 0, y = 0 },
         renownOpen          = false,
+        raresOpen           = false,
+        raresPos            = nil,
+        raresLocked         = false,
+        raresWidth          = 300,
+        raresHeight         = 360,
+        raresFontSize       = 9,
+        raresShimmer        = true,
+        raresHiddenZones    = {},
+        raresCompact        = false,
+        raresMinimized      = false,
+        raresScale          = 1.0,
+        raresAlpha          = 1.0,
+        raresHideKilled     = false,
+        raresColors         = {},
         renownPos           = nil,
         renownLocked        = false,
         renownWidth         = 280,
@@ -333,11 +347,8 @@ function MR:OnEnable()
         "QUEST_TURNED_IN",
         "LFG_COMPLETION_REWARD",
         "CURRENCY_DISPLAY_UPDATE",
-    }, 1, "Scan")
-
-    self:RegisterBucketEvent({
         "AREA_POIS_UPDATED",
-    }, 2, "Scan")
+    }, 1, "Scan")
 
     self:RegisterBucketEvent({
         "SKILL_LINES_CHANGED",
@@ -348,15 +359,16 @@ function MR:OnEnable()
 
     self:RegisterBucketEvent({
         "ZONE_CHANGED_NEW_AREA",
-        "ZONE_CHANGED",
     }, 0.5, "OnZoneChanged")
 
-    self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", "OnSpellCast")
-    self:RegisterEvent("CHALLENGE_MODE_COMPLETED", "OnVaultEvent")
-    self:RegisterEvent("ENCOUNTER_END",            "OnEncounterEnd")
-    self:RegisterEvent("WEEKLY_REWARDS_UPDATE",    "OnVaultEvent")
-    self:RegisterEvent("PLAYER_ENTERING_WORLD",    "OnEnteringWorld")
+    self:RegisterBucketEvent({
+        "CHALLENGE_MODE_COMPLETED",
+        "WEEKLY_REWARDS_UPDATE",
+    }, 1, "OnVaultEvent")
 
+    self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", "OnSpellCast")
+    self:RegisterEvent("ENCOUNTER_END",            "OnEncounterEnd")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD",    "OnEnteringWorld")
 end
 
 function MR:OnEnteringWorld()
@@ -378,14 +390,17 @@ function MR:OnEnteringWorld()
     end
     self:MaybeShowWelcomeScreen()
     if self.OnRenownUpdate then
-        self:RegisterEvent("MAJOR_FACTION_RENOWN_LEVEL_CHANGED", "OnRenownUpdate")
         self:RegisterBucketEvent({
+            "MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
             "UPDATE_FACTION",
             "COMBAT_TEXT_UPDATE",
         }, 1, "OnRenownUpdate")
     end
-    if self.db.profile.renownOpen and self.ToggleRenown then
-        self:ScheduleTimer(function() self:ToggleRenown() end, 1.5)
+    if self.db.profile.renownOpen and self.EnsureRenownShown then
+        self:ScheduleTimer(function() self:EnsureRenownShown() end, 1.5)
+    end
+    if self.db.profile.raresOpen and self.EnsureRaresShown then
+        self:ScheduleTimer(function() self:EnsureRaresShown() end, 1.7)
     end
     self:ScheduleTimer(function()
         self:CheckWeeklyReset()
@@ -415,6 +430,9 @@ end
 function MR:OnZoneChanged()
     self:Scan()
     self:RefreshUI()
+    if self.OnRaresZoneChanged then
+        self:OnRaresZoneChanged()
+    end
 end
 
 function MR:OnEncounterEnd(_, _, _, _, _, success)
@@ -457,6 +475,8 @@ SlashCmdList["MIDROUTE"] = function(msg)
     elseif msg == "welcome" then MR:ShowWelcomeScreen()
     elseif msg == "renown"  then MR:ToggleRenown()
     elseif msg == "renown config" then MR:ToggleRenownConfig()
+    elseif msg == "rares"   then MR:ToggleRares()
+    elseif msg == "rares config" then MR:ToggleRaresConfig()
     else
         print("|cff2ae7c6/mr|r commands: show, hide, lock, unlock, reset, minimap, scale <0.5-2>, big, small, welcome, renown")
     end

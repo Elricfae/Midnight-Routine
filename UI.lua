@@ -462,7 +462,7 @@ function MR:RefreshUI()
     local allDone, allTotal = 0, 0
 
     local frameW   = MR.db.profile.width or 260
-    local usableW  = frameW - 9  
+    local usableW  = frameW - 9
     local MIN_COL  = 200
     local numCols  = math.max(1, math.floor(usableW / MIN_COL))
     local colW     = math.floor(usableW / numCols)
@@ -552,7 +552,7 @@ end
 function MR:MeasureSection(mod)
     local isOpen = MR:IsModuleOpen(mod.key)
     local hideComplete = MR:IsModuleHideComplete(mod.key)
-    local h = HEADER_HEIGHT + 1 
+    local h = HEADER_HEIGHT + 1
     if isOpen then
         for _, row in ipairs(mod.rows) do
             local rowVisible = not row.isVisible or row.isVisible()
@@ -759,8 +759,6 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
     dot:SetPoint("LEFT", rowFrame, "LEFT", PADDING, 0)
     SetDotColor(dot, done, row.max)
 
-
-
     local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
     lbl:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
     lbl:SetPoint("LEFT",  rowFrame, "LEFT",  PADDING + 10, 0)
@@ -795,7 +793,6 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
     table.insert(self.widgets, rowFrame)
     return yOff + rowH
 end
-
 
 function MR:ToggleConfig()
     if cfgFrame and cfgFrame:IsShown() then cfgFrame:Hide() return end
@@ -899,6 +896,14 @@ function MR:PopulateConfigFrame(f)
             MR.db.profile.renownOpen = v
             if MR.ToggleRenown then MR:ToggleRenown() end
         end, "#d9b82e")
+    Gap(4); Divider()
+    SectionLabel("RARES FRAME")
+    Checkbox("Open Rares Window",
+        function() return MR.db and MR.db.profile.raresOpen end,
+        function(v)
+            MR.db.profile.raresOpen = v
+            if MR.ToggleRares then MR:ToggleRares() end
+        end, "#e05050")
     Gap(4); Divider()
     SectionLabel("OPTIONS")
     Checkbox("Collapse Completed (Global)",
@@ -1091,7 +1096,7 @@ function MR:PopulateConfigFrame(f)
         local bTop   = body:GetTop()
         if not bLeft or not bTop then return end
         local localX = cx / scale - bLeft
-        local localY = bTop - cy / scale 
+        local localY = bTop - cy / scale
 
         dragGhost:ClearAllPoints()
         dragGhost:SetPoint("TOPLEFT",  body, "TOPLEFT", 4,       -localY + 10)
@@ -1099,7 +1104,7 @@ function MR:PopulateConfigFrame(f)
         dragGhost:Show()
 
         local screenCY = cy / UIParent:GetEffectiveScale()
-        local slot = #rows  
+        local slot = #rows
         for i, row in ipairs(rows) do
             local rTop = row.frame:GetTop()
             local rBot = row.frame:GetBottom()

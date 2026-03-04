@@ -20,8 +20,8 @@ MR:RegisterModule({
         local UATV_BRANCHES = {
             { quest = 93909, name = "Midnight: Delves"    },
             { quest = 93911, name = "Midnight: Dungeons"  },
-            { quest = 93912, name = "Midnight: Raids"     },  
-            { quest = 93910, name = "Midnight: PvP"       },  
+            { quest = 93912, name = "Midnight: Raids"     },
+            { quest = 93910, name = "Midnight: PvP"       },
         }
 
         local db = MR.db.char.progress
@@ -31,6 +31,7 @@ MR:RegisterModule({
             if C_QuestLog.IsQuestFlaggedCompleted(a.quest) then
                 db[mod.key]["special_assignment"] = 1
                 db[mod.key]["sa_active_name"]     = a.name
+
                 break
             end
         end
@@ -45,6 +46,7 @@ MR:RegisterModule({
         end
 
         if C_QuestLog.IsQuestFlaggedCompleted(93744) then
+
             for _, b in ipairs(UATV_BRANCHES) do
                 if C_QuestLog.IsQuestFlaggedCompleted(b.quest) then
                     db[mod.key]["uatv_branch_name"] = b.name
@@ -55,6 +57,7 @@ MR:RegisterModule({
                 db[mod.key]["uatv_branch_name"] = "Unknown activity"
             end
         else
+
             db[mod.key]["uatv_branch_name"] = nil
             for _, b in ipairs(UATV_BRANCHES) do
                 if C_QuestLog.IsOnQuest(b.quest) then
@@ -143,6 +146,7 @@ MR:RegisterModule({
             label    = "|cff2ae7c6Unity Against the Void:|r",
             max      = 1,
             note     = "Choose one activity: Delves, Dungeons, Raids, or PvP. Completing it rewards an Apex Cache.",
+
             questIds = { 93744, 93909, 93911, 93912, 93910 },
             tooltipFunc = function(tip)
                 local BRANCHES = {
@@ -190,6 +194,7 @@ MR:RegisterModule({
             label    = "|cff2ae7c6Special Assignment:|r",
             max      = 1,
             note     = "One Special Assignment is available each week. Complete it for bonus rewards.",
+
             questIds = { 91390, 91796, 92063, 92139, 92145, 93013, 93244, 93438 },
             tooltipFunc = function(tip)
                 local assignments = {
@@ -220,6 +225,7 @@ MR:RegisterModule({
                         if C_QuestLog.IsOnQuest(a.unlock) or
                            C_QuestLog.IsQuestFlaggedCompleted(a.unlock) then
                             activeAssignment = a
+
                             local objectives = C_QuestLog.GetQuestObjectives(a.unlock)
                             if objectives and objectives[1] and objectives[1].text and
                                objectives[1].text ~= "" then

@@ -1,10 +1,10 @@
-
 local FONT_HEADERS = MR_FONT_HEADERS
 local FONT_ROWS    = MR_FONT_ROWS
 local hex          = MR_HEX
 
 local pendingEnabled = {}
 local pendingRenown  = false
+local pendingRares   = false
 local checkboxRefs   = {}
 
 local function BuildWelcomeScreen()
@@ -16,6 +16,7 @@ local function BuildWelcomeScreen()
     end
 
     pendingRenown = MR.db and MR.db.profile.renownOpen or false
+    pendingRares  = MR.db and MR.db.profile.raresOpen  or false
 
     local f = MR_StyledFrame(UIParent, "MRWelcomeFrame", "FULLSCREEN_DIALOG", 200)
     f:SetSize(310, 10)
@@ -151,6 +152,45 @@ local function BuildWelcomeScreen()
 
     yOff = yOff - 80
 
+    local raresPanel = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    raresPanel:SetPoint("TOPLEFT",  f, "TOPLEFT",   8, yOff)
+    raresPanel:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, yOff)
+    raresPanel:SetHeight(72)
+    raresPanel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    raresPanel:SetBackdropColor(0.12, 0.03, 0.03, 0.85)
+    raresPanel:SetBackdropBorderColor(0.65, 0.20, 0.10, 0.90)
+
+    local raresAccent = raresPanel:CreateTexture(nil, "ARTWORK")
+    raresAccent:SetHeight(2)
+    raresAccent:SetPoint("TOPLEFT",  raresPanel, "TOPLEFT",  1, -1)
+    raresAccent:SetPoint("TOPRIGHT", raresPanel, "TOPRIGHT", -1, -1)
+    raresAccent:SetColorTexture(0.85, 0.25, 0.10, 0.85)
+
+    local raresCb = CreateFrame("CheckButton", nil, raresPanel, "UICheckButtonTemplate")
+    raresCb:SetSize(22, 22)
+    raresCb:SetPoint("LEFT", raresPanel, "LEFT", 8, 4)
+    raresCb:SetChecked(pendingRares)
+    raresCb:SetScript("OnClick", function(s)
+        pendingRares = s:GetChecked()
+    end)
+
+    local raresLbl = raresPanel:CreateFontString(nil, "OVERLAY")
+    raresLbl:SetFont(FONT_HEADERS, 12, "OUTLINE")
+    raresLbl:SetPoint("LEFT",  raresCb, "RIGHT", 4, 4)
+    raresLbl:SetPoint("RIGHT", raresPanel, "RIGHT", -8, 0)
+    raresLbl:SetJustifyH("LEFT")
+    raresLbl:SetText("|cffe05050Rares Frame|r")
+
+    local raresDesc = raresPanel:CreateFontString(nil, "OVERLAY")
+    raresDesc:SetFont(FONT_ROWS, 10, "OUTLINE")
+    raresDesc:SetPoint("TOPLEFT",  raresPanel, "TOPLEFT",  10, -42)
+    raresDesc:SetPoint("BOTTOMRIGHT", raresPanel, "BOTTOMRIGHT", -10, 6)
+    raresDesc:SetJustifyH("LEFT")
+    raresDesc:SetJustifyV("TOP")
+    raresDesc:SetText("|cffaabbaaShows a separate Rares tracker window for all Midnight zones.|r")
+
+    yOff = yOff - 80
+
     yOff = yOff - 4
     MakeDivider(yOff)
     yOff = yOff - 10
@@ -217,6 +257,10 @@ local function BuildWelcomeScreen()
             if pendingRenown and MR.ToggleRenown then
                 MR:ToggleRenown()
             end
+            MR.db.profile.raresOpen = pendingRares
+            if pendingRares and MR.ToggleRares then
+                MR:ToggleRares()
+            end
         end
         MR.db.profile.firstSeen = true
         if MR.cfgShine then MR.cfgShine:Stop() end
@@ -254,7 +298,6 @@ local function BuildWelcomeScreen()
 
     return f
 end
-
 
 function MR:ShowWelcomeScreen()
     if self.welcomeFrame then

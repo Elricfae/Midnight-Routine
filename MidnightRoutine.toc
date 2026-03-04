@@ -34,6 +34,7 @@ Modules/Prey.lua
 Modules/StoryCampaign.lua
 Modules/WorldEvents.lua
 Modules/Renown.lua
+Modules/Rares.lua
 
 UI.lua
 WelcomeScreen.lua

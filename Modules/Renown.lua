@@ -8,7 +8,6 @@ local RebuildRenownFrame
 local SaveFactionOrder
 local PopulateRenownConfig
 
-
 local FACTIONS = {
     {
         key       = "silvermoon",
@@ -312,7 +311,6 @@ local function RefreshRenownFrame()
     end
 end
 
-
 local renownCfgFrame
 
 local function BuildRenownConfigFrame()
@@ -344,8 +342,6 @@ local function BuildRenownConfigFrame()
     f.body = nil
     return f
 end
-
-
 
 GetOrderedFactions = function()
     local db    = MR.db and MR.db.profile or {}
@@ -401,7 +397,6 @@ ResetFactionColor = function(faction)
         MR.db.profile.renownColors[faction.key] = nil
     end
 end
-
 
 PopulateRenownConfig = function(f)
     if f.body then
@@ -725,7 +720,6 @@ PopulateRenownConfig = function(f)
     body:SetHeight(totalH)
 end
 
-
 function MR:ToggleRenownConfig()
     if not renownCfgFrame then
         renownCfgFrame = BuildRenownConfigFrame()
@@ -757,6 +751,17 @@ function MR:ToggleRenown()
         if self.db then self.db.profile.renownOpen = true end
         RefreshRenownFrame()
     end
+end
+
+function MR:EnsureRenownShown()
+    if not renownFrame then
+        renownFrame = BuildRenownFrame()
+    end
+    if not renownFrame:IsShown() then
+        renownFrame:Show()
+        if self.db then self.db.profile.renownOpen = true end
+    end
+    RefreshRenownFrame()
 end
 
 function MR:RefreshRenown()
