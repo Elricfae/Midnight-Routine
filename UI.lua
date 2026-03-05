@@ -801,6 +801,10 @@ function MR:ToggleConfig()
     cfgFrame:Show()
 end
 
+function MR:HideConfig()
+    if cfgFrame then cfgFrame:Hide() end
+end
+
 function MR:BuildConfigFrame()
     local f = CreateFrame("Frame", "MRConfigFrame", UIParent, "BackdropTemplate")
     f:SetWidth(240)
@@ -934,6 +938,14 @@ function MR:PopulateConfigFrame(f)
     Checkbox("Hide Minimap Icon",
         function() return MR.db.profile.minimap and MR.db.profile.minimap.hide or false end,
         function(v) MR:SetMinimapHidden(v) end)
+    Checkbox("Hide Frames in Instances",
+        function() return MR.db.profile.hideFramesInInstances end,
+        function(v)
+            MR.db.profile.hideFramesInInstances = v
+            if MR.UpdateInstanceFrameVisibility then
+                MR:UpdateInstanceFrameVisibility()
+            end
+        end)
 
     Gap(6)
     yOff = MR_OptionsSlider(body, yOff, "WIDTH", PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, 10,

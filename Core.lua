@@ -12,6 +12,7 @@ local DEFAULTS = {
         scale           = 1.0,
         frameAlpha      = 1.0,
         hideComplete    = true,
+        hideFramesInInstances = false,
         transparentMode = false,
         width           = 260,
         height          = 400,
@@ -353,6 +354,58 @@ function MR:OnInitialize()
     self.db = AceDB:New("MidnightRoutineDB", DEFAULTS, true)
 end
 
+local INSTANCE_HIDE_TYPES = {
+    party = true,
+    raid = true,
+    arena = true,
+    pvp = true,
+    scenario = true,
+}
+
+function MR:ShouldHideFramesInCurrentInstance()
+    if not self.db or not self.db.profile.hideFramesInInstances then return false end
+    local inInstance, instanceType = IsInInstance()
+    if not inInstance then return false end
+    return INSTANCE_HIDE_TYPES[instanceType] == true
+end
+
+function MR:UpdateInstanceFrameVisibility()
+    if not self.db then return end
+
+    local shouldHide = self:ShouldHideFramesInCurrentInstance()
+    if shouldHide then
+        if self._instanceFramesHidden then return end
+
+        self._instanceFramesHidden = true
+        self._instanceRestoreState = {
+            panel = self.frame and self.frame:IsShown() or false,
+            renown = self.db.profile.renownOpen and true or false,
+            rares = self.db.profile.raresOpen and true or false,
+            gathering = self.db.profile.gatheringLocOpen and true or false,
+        }
+
+        if self.frame then self.frame:Hide() end
+        if self.HideConfig then self:HideConfig() end
+        if self.HideRenown then self:HideRenown(false) end
+        if self.HideRares then self:HideRares(false) end
+        if self.HideGatheringLocations then self:HideGatheringLocations(false) end
+        return
+    end
+
+    if not self._instanceFramesHidden then return end
+
+    local state = self._instanceRestoreState or {}
+    self._instanceFramesHidden = false
+    self._instanceRestoreState = nil
+
+    if state.panel and self.frame then self.frame:Show() end
+    if state.renown and self.EnsureRenownShown then self:EnsureRenownShown() end
+    if state.rares and self.EnsureRaresShown then self:EnsureRaresShown() end
+    if state.gathering and self.EnsureGatheringLocationsShown then
+        self:EnsureGatheringLocationsShown()
+    end
+end
+
 function MR:OnEnable()
     self:RegisterBucketEvent({
         "QUEST_LOG_UPDATE",
@@ -401,6 +454,10 @@ function MR:OnEnteringWorld()
     if self.frame and self.db.profile.panelOpen == false then
         self.frame:Hide()
     end
+
+    self:UpdateInstanceFrameVisibility()
+    local shouldHideFrames = self._instanceFramesHidden == true
+
     self:MaybeShowWelcomeScreen()
     if self.OnRenownUpdate then
         self:RegisterBucketEvent({
@@ -409,19 +466,20 @@ function MR:OnEnteringWorld()
             "COMBAT_TEXT_UPDATE",
         }, 1, "OnRenownUpdate")
     end
-    if self.db.profile.renownOpen and self.EnsureRenownShown then
+    if not shouldHideFrames and self.db.profile.renownOpen and self.EnsureRenownShown then
         self:ScheduleTimer(function() self:EnsureRenownShown() end, 1.5)
     end
-    if self.db.profile.raresOpen and self.EnsureRaresShown then
+    if not shouldHideFrames and self.db.profile.raresOpen and self.EnsureRaresShown then
         self:ScheduleTimer(function() self:EnsureRaresShown() end, 1.7)
     end
-    if self.db.profile.gatheringLocOpen and self.EnsureGatheringLocationsShown then
+    if not shouldHideFrames and self.db.profile.gatheringLocOpen and self.EnsureGatheringLocationsShown then
         self:ScheduleTimer(function() self:EnsureGatheringLocationsShown() end, 1.9)
     end
     self:ScheduleTimer(function()
         self:CheckWeeklyReset()
         self:RefreshPlayerProfessions()
         self:RefreshUI()
+        self:UpdateInstanceFrameVisibility()
         if self.RefreshGatheringLocationsFrame then
             self:RefreshGatheringLocationsFrame()
         end
@@ -450,6 +508,7 @@ function MR:OnVaultEvent()
 end
 
 function MR:OnZoneChanged()
+    self:UpdateInstanceFrameVisibility()
     self:Scan()
     self:RefreshUI()
     if self.OnRaresZoneChanged then

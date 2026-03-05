@@ -978,15 +978,21 @@ function MR:ToggleRares()
         raresFrame = BuildRaresFrame()
     end
     if raresFrame:IsShown() then
-        raresFrame:Hide()
-        if raresCfgFrame then raresCfgFrame:Hide() end
-        if self.db then self.db.profile.raresOpen = false end
+        self:HideRares()
     else
         raresFrame:Show()
         if self.db then self.db.profile.raresOpen = true end
         raresFrame:SetScale((MR.db and MR.db.profile.raresScale) or 1.0)
         lastZoneKey = GetCurrentZoneKey()
         RefreshRaresFrame()
+    end
+end
+
+function MR:HideRares(persistState)
+    if raresFrame then raresFrame:Hide() end
+    if raresCfgFrame then raresCfgFrame:Hide() end
+    if persistState ~= false and self.db then
+        self.db.profile.raresOpen = false
     end
 end
 

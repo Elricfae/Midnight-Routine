@@ -744,12 +744,19 @@ function MR:ToggleRenown()
         renownFrame = BuildRenownFrame()
     end
     if renownFrame:IsShown() then
-        renownFrame:Hide()
-        if self.db then self.db.profile.renownOpen = false end
+        self:HideRenown()
     else
         renownFrame:Show()
         if self.db then self.db.profile.renownOpen = true end
         RefreshRenownFrame()
+    end
+end
+
+function MR:HideRenown(persistState)
+    if renownFrame then renownFrame:Hide() end
+    if renownCfgFrame then renownCfgFrame:Hide() end
+    if persistState ~= false and self.db then
+        self.db.profile.renownOpen = false
     end
 end
 

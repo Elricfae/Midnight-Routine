@@ -897,9 +897,12 @@ function MR:RefreshGatheringLocationsFrame()
     end
 end
 
-function MR:HideGatheringLocations()
+function MR:HideGatheringLocations(persistState)
     if gatheringLocationsFrame then gatheringLocationsFrame:Hide() end
-    if self.db then self.db.profile.gatheringLocOpen = false end
+    if gatheringCfgFrame then gatheringCfgFrame:Hide() end
+    if persistState ~= false and self.db then
+        self.db.profile.gatheringLocOpen = false
+    end
 end
 
 local eventFrame = CreateFrame("Frame")
