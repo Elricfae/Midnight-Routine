@@ -33,6 +33,8 @@ L["Tooltip_AutoQuest"] = "通過任務日誌自動追蹤"
 L["Tooltip_AutoItem"] = "通過物品使用自動追蹤"
 L["Tooltip_AutoCurrency"] = "通過貨幣自動追蹤"
 L["Tooltip_ManualClick"] = "左鍵：+1 右鍵：-1"
+L["Tooltip_ManualDot_Hint"] = "Click to manually mark as complete"
+L["Tooltip_ManualDot_Active"] = "|cffffe066Manually marked complete|r — click to clear"
 L["Tooltip_ExpandCollapse"] = "左鍵：展開/折疊"
 
 -- UI Config

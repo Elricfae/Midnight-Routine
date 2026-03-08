@@ -759,10 +759,44 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
         end)
     end
 
-    local dot = rowFrame:CreateTexture(nil, "ARTWORK")
-    dot:SetSize(6, 6)
-    dot:SetPoint("LEFT", rowFrame, "LEFT", PADDING, 0)
-    SetDotColor(dot, done, row.max)
+    local manualOver = isAutoTracked and not row.noMax and MR:GetManualOverride(mod.key, row.key) or 0
+
+    if isAutoTracked and not row.noMax then
+        local dotBtn = CreateFrame("Button", nil, rowFrame)
+        dotBtn:SetSize(14, 14)
+        dotBtn:SetPoint("LEFT", rowFrame, "LEFT", PADDING - 4, 0)
+        local dotTex = dotBtn:CreateTexture(nil, "ARTWORK")
+        dotTex:SetSize(6, 6)
+        dotTex:SetPoint("CENTER")
+        if manualOver >= row.max then
+            dotTex:SetColorTexture(1, 0.85, 0.1, 1)
+        else
+            SetDotColor(dotTex, done, row.max)
+        end
+        dotBtn:SetScript("OnClick", function()
+            local cur = MR:GetManualOverride(mod.key, row.key)
+            MR:SetManualOverride(mod.key, row.key, cur >= row.max and 0 or row.max, row.max)
+        end)
+        dotBtn:SetScript("OnEnter", function()
+            hover:SetColorTexture(1, 1, 1, 0.04)
+            GameTooltip:SetOwner(dotBtn, "ANCHOR_RIGHT")
+            if manualOver >= row.max then
+                GameTooltip:SetText(L["Tooltip_ManualDot_Active"], 0.4, 0.85, 0.4, 1, true)
+            else
+                GameTooltip:SetText(L["Tooltip_ManualDot_Hint"], 1, 0.8, 0.2, 1, true)
+            end
+            GameTooltip:Show()
+        end)
+        dotBtn:SetScript("OnLeave", function()
+            hover:SetColorTexture(1, 1, 1, 0)
+            GameTooltip:Hide()
+        end)
+    else
+        local dot = rowFrame:CreateTexture(nil, "ARTWORK")
+        dot:SetSize(6, 6)
+        dot:SetPoint("LEFT", rowFrame, "LEFT", PADDING, 0)
+        SetDotColor(dot, done, row.max)
+    end
 
     local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
     lbl:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")

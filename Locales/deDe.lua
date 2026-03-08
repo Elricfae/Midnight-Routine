@@ -33,6 +33,8 @@ L["Tooltip_AutoQuest"] = "Automatisch über das Questlog verfolgt"
 L["Tooltip_AutoItem"] = "Automatisch über Item-Benutzung verfolgt"
 L["Tooltip_AutoCurrency"] = "Automatisch über Währung verfolgt"
 L["Tooltip_ManualClick"] = "Linksklick: +1   Rechtsklick: -1"
+L["Tooltip_ManualDot_Hint"] = "Click to manually mark as complete"
+L["Tooltip_ManualDot_Active"] = "|cffffe066Manually marked complete|r — click to clear"
 L["Tooltip_ExpandCollapse"] = "Linksklick: ein-/ausklappen"
 
 -- UI Config

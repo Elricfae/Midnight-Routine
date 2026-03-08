@@ -33,6 +33,8 @@ L["Tooltip_AutoQuest"] = "Rastreado automáticamente vía registro de misiones"
 L["Tooltip_AutoItem"] = "Rastreado automáticamente vía uso de objeto"
 L["Tooltip_AutoCurrency"] = "Rastreado automáticamente vía divisa"
 L["Tooltip_ManualClick"] = "Clic-izquierdo: +1 Clic-derecho: -1"
+L["Tooltip_ManualDot_Hint"] = "Click to manually mark as complete"
+L["Tooltip_ManualDot_Active"] = "|cffffe066Manually marked complete|r — click to clear"
 L["Tooltip_ExpandCollapse"] = "Clic-izquierdo: expandir/contraer"
 
 -- UI Config

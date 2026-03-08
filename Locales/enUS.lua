@@ -33,6 +33,8 @@ L["Tooltip_AutoQuest"] = "Auto-tracked via quest log"
 L["Tooltip_AutoItem"] = "Auto-tracked via item use"
 L["Tooltip_AutoCurrency"] = "Auto-tracked via currency"
 L["Tooltip_ManualClick"] = "Left-click: +1   Right-click: -1"
+L["Tooltip_ManualDot_Hint"] = "Click to manually mark as complete"
+L["Tooltip_ManualDot_Active"] = "|cffffe066Manually marked complete|r — click to clear"
 L["Tooltip_ExpandCollapse"] = "Left-click: expand/collapse"
 
 -- UI Config

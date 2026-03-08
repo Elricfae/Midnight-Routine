@@ -33,6 +33,8 @@ L["Tooltip_AutoQuest"] = "Suivi automatique via le journal de quêtes"
 L["Tooltip_AutoItem"] = "Suivi automatique via l'utilisation d'objet"
 L["Tooltip_AutoCurrency"] = "Suivi automatique via la monnaie"
 L["Tooltip_ManualClick"] = "Clic gauche : +1   Clic droit : -1"
+L["Tooltip_ManualDot_Hint"] = "Click to manually mark as complete"
+L["Tooltip_ManualDot_Active"] = "|cffffe066Manually marked complete|r — click to clear"
 L["Tooltip_ExpandCollapse"] = "Clic gauche : développer/réduire"
 
 -- UI Config

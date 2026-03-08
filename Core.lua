@@ -70,6 +70,8 @@ local DEFAULTS = {
     char = {
         progress = {},
         lastWeek = 0,
+        manualOverrides = {},
+        welcomeSeen = false,
     },
 }
 
@@ -100,6 +102,23 @@ end
 
 function MR:BumpProgress(moduleKey, rowKey, delta, maxVal)
     self:SetProgress(moduleKey, rowKey, self:GetProgress(moduleKey, rowKey) + delta, maxVal)
+end
+
+function MR:GetManualOverride(modKey, rowKey)
+    local m = self.db.char.manualOverrides
+    return (m and m[modKey] and m[modKey][rowKey]) or 0
+end
+
+function MR:SetManualOverride(modKey, rowKey, val, maxVal)
+    if not self.db.char.manualOverrides then self.db.char.manualOverrides = {} end
+    if not self.db.char.manualOverrides[modKey] then self.db.char.manualOverrides[modKey] = {} end
+    if val <= 0 then
+        self.db.char.manualOverrides[modKey][rowKey] = nil
+        self:Scan()
+    else
+        self.db.char.manualOverrides[modKey][rowKey] = maxVal and math.min(val, maxVal) or val
+        self:SetProgress(modKey, rowKey, self.db.char.manualOverrides[modKey][rowKey], maxVal)
+    end
 end
 
 function MR:GetOrderedModules()
@@ -258,8 +277,12 @@ function MR:BuildSpellIndex()
     end
 end
 
-local function WriteProgress(progress, modKey, rowKey, val)
+local function WriteProgress(progress, modKey, rowKey, val, overrides)
     if not progress[modKey] then progress[modKey] = {} end
+    if overrides and overrides[modKey] then
+        local mo = overrides[modKey][rowKey]
+        if mo and mo > val then val = mo end
+    end
     if progress[modKey][rowKey] == val then return false end
     progress[modKey][rowKey] = val
     return true
@@ -276,7 +299,7 @@ function MR:Scan()
                 for _, qid in ipairs(row.questIds) do
                     if C_QuestLog.IsQuestFlaggedCompleted(qid) then done = done + 1 end
                 end
-                if WriteProgress(progress, mod.key, row.key, math.min(done, row.max or done)) then
+                if WriteProgress(progress, mod.key, row.key, math.min(done, row.max or done), self.db.char.manualOverrides) then
                     dirty = true
                 end
             end
@@ -304,7 +327,7 @@ function MR:Scan()
                     end
 
                     local val = row.noMax and raw or math.min(raw, row.max or raw)
-                    if WriteProgress(progress, mod.key, row.key, val) then dirty = true end
+                    if WriteProgress(progress, mod.key, row.key, val, self.db.char.manualOverrides) then dirty = true end
                 end
             end
         end
@@ -320,6 +343,11 @@ function MR:Scan()
             for _, row in ipairs(mod.rows) do
                 if row.liveKey and row.liveKey ~= row.key and mdb[row.liveKey] ~= nil then
                     local capped = row.noMax and mdb[row.liveKey] or math.min(mdb[row.liveKey], row.max)
+                    local _ov = self.db.char.manualOverrides
+                    if _ov and _ov[mod.key] then
+                        local mo = _ov[mod.key][row.key]
+                        if mo and mo > capped then capped = mo end
+                    end
                     if mdb[row.key] ~= capped then mdb[row.key] = capped; dirty = true end
                 end
                 if row.liveTierLabelKey and mdb[row.liveTierLabelKey] then
