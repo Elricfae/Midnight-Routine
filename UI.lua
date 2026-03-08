@@ -759,31 +759,37 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
         end)
     end
 
-    local manualOver = isAutoTracked and not row.noMax and MR:GetManualOverride(mod.key, row.key) or 0
-
     if isAutoTracked and not row.noMax then
         local dotBtn = CreateFrame("Button", nil, rowFrame)
-        dotBtn:SetSize(14, 14)
-        dotBtn:SetPoint("LEFT", rowFrame, "LEFT", PADDING - 4, 0)
+        dotBtn:SetSize(14, ROW_HEIGHT)
+        dotBtn:SetPoint("LEFT", rowFrame, "LEFT", 0, 0)
         local dotTex = dotBtn:CreateTexture(nil, "ARTWORK")
         dotTex:SetSize(6, 6)
-        dotTex:SetPoint("CENTER")
-        if manualOver >= row.max then
-            dotTex:SetColorTexture(1, 0.85, 0.1, 1)
-        else
-            SetDotColor(dotTex, done, row.max)
+        dotTex:SetPoint("LEFT", dotBtn, "LEFT", PADDING, 0)
+        local function RefreshDotColor()
+            local mo = MR:GetManualOverride(mod.key, row.key)
+            if mo >= row.max then
+                dotTex:SetColorTexture(1, 0.85, 0.1, 1)
+            else
+                SetDotColor(dotTex, done, row.max)
+            end
         end
+        RefreshDotColor()
         dotBtn:SetScript("OnClick", function()
             local cur = MR:GetManualOverride(mod.key, row.key)
             MR:SetManualOverride(mod.key, row.key, cur >= row.max and 0 or row.max, row.max)
         end)
         dotBtn:SetScript("OnEnter", function()
             hover:SetColorTexture(1, 1, 1, 0.04)
+            local mo = MR:GetManualOverride(mod.key, row.key)
             GameTooltip:SetOwner(dotBtn, "ANCHOR_RIGHT")
-            if manualOver >= row.max then
-                GameTooltip:SetText(L["Tooltip_ManualDot_Active"], 0.4, 0.85, 0.4, 1, true)
+            GameTooltip:SetText(row.label, 1, 1, 1, 1, true)
+            if row.note then GameTooltip:AddLine(row.note, 0.7, 0.7, 0.7, true) end
+            GameTooltip:AddLine(" ")
+            if mo >= row.max then
+                GameTooltip:AddLine(L["Tooltip_ManualDot_Active"], 1, 0.85, 0.1, true)
             else
-                GameTooltip:SetText(L["Tooltip_ManualDot_Hint"], 1, 0.8, 0.2, 1, true)
+                GameTooltip:AddLine(L["Tooltip_ManualDot_Hint"], 0.7, 0.7, 0.7, true)
             end
             GameTooltip:Show()
         end)

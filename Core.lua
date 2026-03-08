@@ -114,6 +114,7 @@ function MR:SetManualOverride(modKey, rowKey, val, maxVal)
     if not self.db.char.manualOverrides[modKey] then self.db.char.manualOverrides[modKey] = {} end
     if val <= 0 then
         self.db.char.manualOverrides[modKey][rowKey] = nil
+        self:SetProgress(modKey, rowKey, 0, maxVal or 1)
         self:Scan()
     else
         self.db.char.manualOverrides[modKey][rowKey] = maxVal and math.min(val, maxVal) or val
@@ -385,6 +386,9 @@ function MR:DoWeeklyReset()
     for _, mod in ipairs(self.modules) do
         if mod.resetType == "weekly" then
             self.db.char.progress[mod.key] = {}
+            if self.db.char.manualOverrides then
+                self.db.char.manualOverrides[mod.key] = nil
+            end
         end
     end
     self:Scan()
