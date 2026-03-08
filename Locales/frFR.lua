@@ -78,6 +78,7 @@ L["Welcome_ProfKnowledge_Desc"] = "|cffaabbaaAffiche une fenêtre séparée pour
 L["Welcome_Disable_All"] = "|cffaabbccDésactiver tous les modules|r"
 L["Welcome_Enable_All"] = "|cff2ae7c6Activer tous les modules|r"
 L["Welcome_Confirm"] = "|cff00ff96Confirmer & Démarrer|r"
+L["Welcome_SuppressAll"] = "Ne plus afficher sur aucun personnage"
 
 -- Shared Tooltip Strings
 L["Tooltip_Done_Variant"] = "|cff00ff96[Terminé] Variante complétée :|r"
