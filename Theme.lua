@@ -37,11 +37,25 @@ function MR_SetDotColor(tex, done, max)
     end
 end
 
+MR_LOCALE_SETTINGS = {
+    zhCN = { fontSizeMin = 13, fontSizeDefault = 13 },
+    zhTW = { fontSizeMin = 13, fontSizeDefault = 13 },
+    koKR = { fontSizeMin = 13, fontSizeDefault = 13 },
+}
+
+local _localeSettings = MR_LOCALE_SETTINGS[GetLocale()] or {}
+local _fontSizeMin     = _localeSettings.fontSizeMin or 7
+local _fontSizeDefault = _localeSettings.fontSizeDefault or 11
+
 function MR_GetFontSize()
+    local size
     if MR and MR.db and MR.db.profile and MR.db.profile.fontSize then
-        return MR.db.profile.fontSize
+        size = MR.db.profile.fontSize
+    else
+        size = _fontSizeDefault
     end
-    return 11
+    if size < _fontSizeMin then size = _fontSizeMin end
+    return size
 end
 
 function MR_MakeBackdrop(edge)
