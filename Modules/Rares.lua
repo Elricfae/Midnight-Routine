@@ -113,6 +113,36 @@ local ZONES = {
 local ZONE_BY_KEY = {}
 for _, z in ipairs(ZONES) do ZONE_BY_KEY[z.key] = z end
 
+local function GetCurrentDayKey()
+    return math.floor(GetServerTime() / 86400)
+end
+
+local function SyncRareKillRecord(questId)
+    local char = MR.db and MR.db.char
+    if not char then return end
+    if not char.raresKills then char.raresKills = {} end
+    local weekKey = MR:GetCurrentWeekKey()
+    if not weekKey or weekKey == 0 then return end
+    local dayKey = GetCurrentDayKey()
+    local key    = tostring(questId)
+    local rec    = char.raresKills[key]
+    if not rec or rec.w ~= weekKey then
+        char.raresKills[key] = { w = weekKey, d = dayKey }
+    elseif rec.d ~= dayKey then
+        char.raresKills[key].d = dayKey
+    end
+end
+
+local function GetRareKillStatus(questId)
+    local char = MR.db and MR.db.char
+    if not char or not char.raresKills then return nil end
+    local weekKey = MR:GetCurrentWeekKey()
+    if not weekKey or weekKey == 0 then return nil end
+    local rec = char.raresKills[tostring(questId)]
+    if not rec or rec.w ~= weekKey then return nil end
+    return (rec.d == GetCurrentDayKey()) and "today" or "week"
+end
+
 local function GetZoneColor(zone)
     local db = MR.db and MR.db.profile or {}
     if db.raresColors and db.raresColors[zone.key] then
@@ -134,17 +164,21 @@ local function ResetZoneColor(zone)
 end
 
 local function GetZoneStatus(zone)
-    local db      = MR.db and MR.db.profile or {}
     local numDone = 0
     local status  = {}
     for i, rare in ipairs(zone.rares) do
         local name    = rare[1]
         local questId = rare[2]
-        local weekly  = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
-        local _, _, _, achieved = GetAchievementCriteriaInfo(zone.achievId, i)
-        local ever = achieved == true
+        local flagged = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
+        if flagged then SyncRareKillRecord(questId) end
+        local killStatus = (questId and GetRareKillStatus(questId))
+                           or (flagged and "today")
+                           or nil
+        local weekly = killStatus ~= nil
+        local _, _, ever = GetAchievementCriteriaInfo(zone.achievId, i)
+        ever = ever == true
         if weekly then numDone = numDone + 1 end
-        status[i] = { name = name, weekly = weekly, ever = ever }
+        status[i] = { name = name, weekly = weekly, ever = ever, killStatus = killStatus }
     end
     return numDone, #zone.rares, status
 end
@@ -209,9 +243,10 @@ local function ContentHeight(visible, W)
         if not collapsed[zone.key] then
             local count = 0
             for _, rare in ipairs(zone.rares) do
-                local questId = rare[2]
-                local weekly  = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
-                if not (db.raresHideKilled and weekly) then count = count + 1 end
+                local questId  = rare[2]
+                local flagged  = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
+                local killStat = (questId and GetRareKillStatus(questId)) or (flagged and "today") or nil
+                if not (db.raresHideKilled and killStat == "today") then count = count + 1 end
             end
             if count > 0 then
                 h = h + math.ceil(count / cols) * ROW_H + 10
@@ -517,11 +552,17 @@ BuildRaresFrame = function()
         yOff = yOff + BAR_H
 
         local visibleRares = {}
-        for _, rare in ipairs(zone.rares) do
+        local zoneIdxList  = {}  
+        for zIdx, rare in ipairs(zone.rares) do
             local questId = rare[2]
-            local weekly  = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
-            if not (db.raresHideKilled and weekly) then
+            local flagged = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
+            if flagged then SyncRareKillRecord(questId) end
+            local killStat = (questId and GetRareKillStatus(questId))
+                             or (flagged and "today")
+                             or nil
+            if not (db.raresHideKilled and killStat == "today") then
                 visibleRares[#visibleRares + 1] = rare
+                zoneIdxList[#zoneIdxList + 1]   = zIdx
             end
         end
 
@@ -542,12 +583,14 @@ BuildRaresFrame = function()
         body.dotList      = {}
         body.nameLbls     = {}
         body.visibleRares = visibleRares
+        body.zoneIdxList  = zoneIdxList
 
         for i, rare in ipairs(visibleRares) do
-            local col  = (i - 1) % cols
-            local row  = math.floor((i - 1) / cols)
-            local xPos = ROW_PAD + col * colW
-            local yPos = -(row * ROW_H) - 5
+            local col      = (i - 1) % cols
+            local row      = math.floor((i - 1) / cols)
+            local xPos     = ROW_PAD + col * colW
+            local yPos     = -(row * ROW_H) - 5
+            local zoneIdx  = zoneIdxList[i]  
 
             local dot = body:CreateTexture(nil, "ARTWORK")
             dot:SetSize(DOT_SIZE, DOT_SIZE)
@@ -563,6 +606,33 @@ BuildRaresFrame = function()
             lbl:SetJustifyV("MIDDLE")
             lbl:SetText(rare[1])
             lbl:SetTextColor(0.58, 0.58, 0.58)
+
+            local hit = CreateFrame("Frame", nil, body)
+            hit:SetPoint("TOPLEFT",  body, "TOPLEFT",  xPos, yPos)
+            hit:SetWidth(colW - 4)
+            hit:SetHeight(ROW_H)
+            hit:SetScript("OnEnter", function()
+                local questId = rare[2]
+                local flagged = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
+                if flagged then SyncRareKillRecord(questId) end
+                local killStat = (questId and GetRareKillStatus(questId))
+                                 or (flagged and "today") or nil
+                local _, _, achieved = GetAchievementCriteriaInfo(zone.achievId, zoneIdx)
+                GameTooltip:SetOwner(hit, "ANCHOR_RIGHT")
+                GameTooltip:ClearLines()
+                GameTooltip:AddLine(rare[1], 1, 1, 1)
+                if killStat == "today" then
+                    GameTooltip:AddLine(L["Rares_Tooltip_KilledToday"], 0.20, 0.85, 0.45)
+                elseif killStat == "week" then
+                    GameTooltip:AddLine(L["Rares_Tooltip_KilledWeek"], 0.85, 0.65, 0.10)
+                elseif achieved then
+                    GameTooltip:AddLine(L["Rares_Tooltip_EverKilled"], 0.88, 0.70, 0.12)
+                else
+                    GameTooltip:AddLine(L["Rares_Tooltip_NotKilled"], 0.50, 0.50, 0.50)
+                end
+                GameTooltip:Show()
+            end)
+            hit:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
             body.dotList[i]  = dot
             body.nameLbls[i] = lbl
@@ -693,18 +763,23 @@ RefreshRaresFrame = function()
             local body = zd.body
             if body and body:IsShown() then
                 for i, rare in ipairs(body.visibleRares or {}) do
-                    local dot = body.dotList[i]
-                    local lbl = body.nameLbls[i]
+                    local dot      = body.dotList[i]
+                    local lbl      = body.nameLbls[i]
+                    local zoneIdx  = body.zoneIdxList and body.zoneIdxList[i] or i
                     if dot and lbl then
                         local questId = rare[2]
-                        local weekly  = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
-                        local ever    = false
-                        for _, s in ipairs(status) do
-                            if s.name == rare[1] then ever = s.ever; break end
-                        end
-                        if weekly then
+                        local flagged = questId and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
+                        if flagged then SyncRareKillRecord(questId) end
+                        local killStat = (questId and GetRareKillStatus(questId))
+                                         or (flagged and "today") or nil
+                        local _, _, ever = GetAchievementCriteriaInfo(zone.achievId, zoneIdx)
+                        ever = ever == true
+                        if killStat == "today" then
                             dot:SetColorTexture(0.12, 0.88, 0.50, 1)
                             lbl:SetTextColor(0.30, 0.72, 0.40)
+                        elseif killStat == "week" then
+                            dot:SetColorTexture(0.90, 0.65, 0.10, 1)
+                            lbl:SetTextColor(0.75, 0.55, 0.15)
                         elseif ever then
                             dot:SetColorTexture(0.88, 0.70, 0.12, 1)
                             lbl:SetTextColor(0.75, 0.60, 0.20)
@@ -995,6 +1070,7 @@ function MR:ToggleRares()
         if self.db then self.db.profile.raresOpen = true end
         raresFrame:SetScale((MR.db and MR.db.profile.raresScale) or 1.0)
         lastZoneKey = GetCurrentZoneKey()
+        self:SyncAllRareKills()
         RefreshRaresFrame()
     end
 end
@@ -1022,6 +1098,7 @@ function MR:EnsureRaresShown()
         raresFrame:Show()
         raresFrame:SetScale((MR.db and MR.db.profile.raresScale) or 1.0)
         lastZoneKey = GetCurrentZoneKey()
+        self:SyncAllRareKills()
         RefreshRaresFrame()
         if self.db then self.db.profile.raresOpen = true end
     end
@@ -1033,6 +1110,17 @@ function MR:OnRaresZoneChanged()
     if newKey == lastZoneKey then return end
     lastZoneKey = newKey
     RebuildRaresFrame()
+end
+
+function MR:SyncAllRareKills()
+    for _, zone in ipairs(ZONES) do
+        for _, rare in ipairs(zone.rares) do
+            local questId = rare[2]
+            if questId and C_QuestLog.IsQuestFlaggedCompleted(questId) then
+                SyncRareKillRecord(questId)
+            end
+        end
+    end
 end
 
 function MR:RefreshRares()

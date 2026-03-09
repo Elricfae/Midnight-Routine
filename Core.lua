@@ -75,6 +75,7 @@ local DEFAULTS = {
         lastWeek = 0,
         manualOverrides = {},
         welcomeSeen = false,
+        raresKills = {},
     },
 }
 
@@ -398,6 +399,7 @@ function MR:Scan()
     end
 
     if dirty then self:RefreshUI() end
+    if self.SyncAllRareKills then self:SyncAllRareKills() end
     if self.RefreshRares  then self:RefreshRares()  end
     if self.RefreshRenown then self:RefreshRenown() end
     if self.RefreshGatheringLocationsFrame then self:RefreshGatheringLocationsFrame() end
@@ -427,6 +429,7 @@ function MR:DoWeeklyReset()
             end
         end
     end
+    self.db.char.raresKills = {}
     self:Scan()
     print(L["Weekly_Reset"])
 end
