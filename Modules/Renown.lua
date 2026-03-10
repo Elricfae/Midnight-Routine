@@ -371,11 +371,17 @@ SaveFactionOrder = function(ordered)
 end
 
 RebuildRenownFrame = function()
+    local wasShown = renownFrame and renownFrame:IsShown()
     if renownFrame then
         renownFrame:Hide()
         renownFrame = nil
     end
-    MR:ToggleRenown()
+    renownFrame = BuildRenownFrame()
+    MR.renownFrame = renownFrame
+    if wasShown then
+        renownFrame:Show()
+        RefreshRenownFrame()
+    end
 end
 
 GetFactionColor = function(faction)

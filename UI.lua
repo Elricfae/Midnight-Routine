@@ -17,10 +17,10 @@ local PADDING       = 6
 
 local GetFontSize = MR_GetFontSize
 
-local PEEK_ALPHA_IDLE   = 0.0   
+local PEEK_ALPHA_IDLE   = 0.0    
 local PEEK_ALPHA_HOVER  = 1.0    
 local PEEK_FADE_IN      = 6.0    
-local PEEK_FADE_OUT     = 2.5   
+local PEEK_FADE_OUT     = 2.5    
 
 local function PeekFrameList()
     local list = {}
@@ -507,6 +507,21 @@ function MR:BuildUI()
     end)
     self._dragger = dragger
 
+    self._timerRows = {}
+    local _tick = 0
+    local tickFrame = CreateFrame("Frame")
+    tickFrame:SetScript("OnUpdate", function(_, elapsed)
+        _tick = _tick + elapsed
+        if _tick < 1 then return end
+        _tick = 0
+        for _, f in ipairs(MR._timerRows) do
+            if f:IsShown() and f._timerUpdate then
+                f._timerUpdate()
+            end
+        end
+    end)
+    self._tickFrame = tickFrame
+
     self:RefreshUI()
     ApplyTheme()
 end
@@ -521,6 +536,7 @@ function MR:RefreshUI()
     end
     self.widgets         = {}
     self.sectionRegistry = {}
+    self._timerRows      = {}
 
     local allDone, allTotal = 0, 0
 
@@ -785,24 +801,28 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
 
     rowFrame:SetScript("OnEnter", function()
         hover:SetColorTexture(1, 1, 1, 0.04)
-        GameTooltip:SetOwner(rowFrame, "ANCHOR_RIGHT")
-        GameTooltip:SetText(row.label, 1, 1, 1, 1, true)
-        if row.note then GameTooltip:AddLine(row.note, 0.7, 0.7, 0.7, true) end
-        if row.tooltipFunc then
-            row.tooltipFunc(GameTooltip)
-        end
-        if row.liveKey then
-            GameTooltip:AddLine(L["Tooltip_AutoBlizzard"], 0.4, 0.8, 1)
-        elseif row.questIds then
-            GameTooltip:AddLine(L["Tooltip_AutoQuest"], 0.4, 1, 0.6)
-        elseif row.spellId then
-            GameTooltip:AddLine(L["Tooltip_AutoItem"], 0.9, 0.6, 1)
-        elseif row.currencyId then
-            GameTooltip:AddLine(L["Tooltip_AutoCurrency"], 1, 0.8, 0.2)
+        if row.currencyId then
+            GameTooltip:SetOwner(rowFrame, "ANCHOR_RIGHT")
+            GameTooltip:SetCurrencyByID(row.currencyId)
+            GameTooltip:Show()
         else
-            GameTooltip:AddLine(L["Tooltip_ManualClick"], 0.5, 0.5, 0.5)
+            GameTooltip:SetOwner(rowFrame, "ANCHOR_RIGHT")
+            GameTooltip:SetText(row.label, 1, 1, 1, 1, true)
+            if row.note then GameTooltip:AddLine(row.note, 0.7, 0.7, 0.7, true) end
+            if row.tooltipFunc then
+                row.tooltipFunc(GameTooltip)
+            end
+            if row.liveKey then
+                GameTooltip:AddLine(L["Tooltip_AutoBlizzard"], 0.4, 0.8, 1)
+            elseif row.questIds then
+                GameTooltip:AddLine(L["Tooltip_AutoQuest"], 0.4, 1, 0.6)
+            elseif row.spellId then
+                GameTooltip:AddLine(L["Tooltip_AutoItem"], 0.9, 0.6, 1)
+            else
+                GameTooltip:AddLine(L["Tooltip_ManualClick"], 0.5, 0.5, 0.5)
+            end
+            GameTooltip:Show()
         end
-        GameTooltip:Show()
     end)
     rowFrame:SetScript("OnLeave", function()
         hover:SetColorTexture(1, 1, 1, 0)
@@ -864,28 +884,38 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
         SetDotColor(dot, done, row.max)
     end
 
+    local isCurrencyRow = row.currencyId and row.max and row.max > 0
+    local lblRightOff   = isCurrencyRow and -96 or -52
+
     local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
     lbl:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
     lbl:SetPoint("LEFT",  rowFrame, "LEFT",  PADDING + 10, 0)
-    lbl:SetPoint("RIGHT", rowFrame, "RIGHT", -52, 0)
+    lbl:SetPoint("RIGHT", rowFrame, "RIGHT", lblRightOff, 0)
     lbl:SetJustifyH("LEFT")
     lbl:SetText(row.label)
     if isComplete then lbl:SetTextColor(0.38, 0.38, 0.38) end
-
-    if isComplete then
-        local strike = rowFrame:CreateTexture(nil, "OVERLAY")
-        strike:SetHeight(1)
-        strike:SetPoint("LEFT",  lbl, "LEFT",  0, 0)
-        strike:SetPoint("RIGHT", lbl, "RIGHT", 0, 0)
-        strike:SetColorTexture(0.35, 0.35, 0.35, 0.7)
-    end
 
     local countFS = rowFrame:CreateFontString(nil, "OVERLAY")
     countFS:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
     countFS:SetPoint("RIGHT", rowFrame, "RIGHT", -4, 0)
     countFS:SetJustifyH("RIGHT")
-    countFS:SetText(row.noMax and tostring(done) or string.format("%d / %d", done, row.max))
-    countFS:SetTextColor(countColor(done, row.max))
+
+    if isCurrencyRow then
+        local mdb    = MR.db and MR.db.char.progress[mod.key]
+        local wallet = (mdb and mdb[row.key .. "_wallet"]) or done
+
+        countFS:SetText(string.format("%d/%d", done, row.max))
+        countFS:SetTextColor(countColor(done, row.max))
+
+        local walletFS = rowFrame:CreateFontString(nil, "OVERLAY")
+        walletFS:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
+        walletFS:SetPoint("RIGHT", countFS, "LEFT", -5, 0)
+        walletFS:SetJustifyH("RIGHT")
+        walletFS:SetText(string.format("|cffaaaaaa(%d)|r", wallet))
+    else
+        countFS:SetText(row.noMax and tostring(done) or string.format("%d / %d", done, row.max))
+        countFS:SetTextColor(countColor(done, row.max))
+    end
 
     if row.vaultLabel then
         local vl = rowFrame:CreateFontString(nil, "OVERLAY")
@@ -893,6 +923,28 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
         vl:SetPoint("RIGHT", countFS, "LEFT", -4, 0)
         vl:SetText(row.vaultLabel)
         vl:SetTextColor(hex(row.vaultColor or "#ffffff"))
+    end
+
+    if row.timerEpoch and not isComplete and not collapsed then
+        local function FormatMMSS(s)
+            return string.format("%d:%02d", math.floor(s / 60), s % 60)
+        end
+        local function UpdateTimer()
+            local now    = GetServerTime()
+            local offset = (now - row.timerEpoch) % row.timerInterval
+            if offset < row.timerDuration then
+                local rem = row.timerDuration - offset
+                countFS:SetText("LIVE \xc2\xb7 " .. FormatMMSS(rem))
+                countFS:SetTextColor(0.25, 0.88, 0.50, 1)
+            else
+                local rem = row.timerInterval - offset
+                countFS:SetText("Next \xc2\xb7 " .. FormatMMSS(rem))
+                countFS:SetTextColor(0.55, 0.55, 0.55, 1)
+            end
+        end
+        UpdateTimer()  
+        rowFrame._timerUpdate = UpdateTimer
+        table.insert(MR._timerRows, rowFrame)
     end
 
     table.insert(self.widgets, rowFrame)

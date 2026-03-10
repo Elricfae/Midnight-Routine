@@ -345,23 +345,34 @@ function MR:Scan()
             if row.currencyId then
                 local info = C_CurrencyInfo.GetCurrencyInfo(row.currencyId)
                 if info then
-                    local raw = info.quantity or 0
+                    local wallet  = info.quantity or 0
+                    local weekly  = info.quantityEarnedThisWeek or 0
+                    local weeklyCap = (info.maxWeeklyQuantity and info.maxWeeklyQuantity > 0)
+                                      and info.maxWeeklyQuantity or nil
                     local dynamicCap = nil
+                    local raw = wallet
 
                     if info.maxQuantity and info.maxQuantity > 0 then
                         dynamicCap = info.maxQuantity
                         if info.useTotalEarnedForMaxQty and info.totalEarned ~= nil then
                             raw = info.totalEarned
                         else
-                            raw = info.quantity or 0
+                            raw = wallet
                         end
-                    elseif info.maxWeeklyQuantity and info.maxWeeklyQuantity > 0 then
-                        dynamicCap = info.maxWeeklyQuantity
-                        raw = info.quantityEarnedThisWeek or 0
+                    elseif weeklyCap then
+                        dynamicCap = weeklyCap
+                        raw = weekly
                     end
 
                     if dynamicCap and row.max ~= dynamicCap then
                         row.max = dynamicCap
+                        dirty = true
+                    end
+
+                    if not progress[mod.key] then progress[mod.key] = {} end
+                    local walletKey = row.key .. "_wallet"
+                    if progress[mod.key][walletKey] ~= wallet then
+                        progress[mod.key][walletKey] = wallet
                         dirty = true
                     end
 
@@ -389,10 +400,10 @@ function MR:Scan()
                     end
                     if mdb[row.key] ~= capped then mdb[row.key] = capped; dirty = true end
                 end
-                if row.liveTierLabelKey and mdb[row.liveTierLabelKey] then
+                if row.liveTierLabelKey then
                     row.vaultLabel = mdb[row.liveTierLabelKey]
                 end
-                if row.liveTierColorKey and mdb[row.liveTierColorKey] then
+                if row.liveTierColorKey then
                     row.vaultColor = mdb[row.liveTierColorKey]
                 end
             end

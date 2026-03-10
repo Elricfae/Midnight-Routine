@@ -704,8 +704,12 @@ local function BuildGatheringLocationsFrame()
 end
 
 RebuildGatheringLocationsFrame = function()
+    local wasShown = gatheringLocationsFrame and gatheringLocationsFrame:IsShown()
     if gatheringLocationsFrame then gatheringLocationsFrame:Hide() end
     gatheringLocationsFrame = BuildGatheringLocationsFrame()
+    if not wasShown then
+        gatheringLocationsFrame:Hide()
+    end
 end
 
 local function SetProfessionColor(profession, r, g, b)

@@ -27,6 +27,7 @@ Theme.lua
 Locales/Localization.xml
 Core.lua
 
+Modules/Activities.lua
 Modules/WeeklyTasks.lua
 Modules/PvP.lua
 Modules/GreatVault.lua

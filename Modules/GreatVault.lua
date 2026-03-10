@@ -30,6 +30,14 @@ local function GetRaidDiffName(diffId)
     return d and d[1] or L["Normal"], d and d[2] or "#1eff00"
 end
 
+local function SlotLine(tt, slotNum, count, threshold)
+    if count >= threshold then
+        tt:AddLine(string.format("  Slot %d  |cff40e080\xe2\x9c\x93 Unlocked|r", slotNum), 1, 1, 1)
+    else
+        tt:AddLine(string.format("  Slot %d  %d / %d needed", slotNum, count, threshold), 0.55, 0.55, 0.55)
+    end
+end
+
 MR:RegisterModule({
     key         = "great_vault",
     label       = L["GreatVault_Title"],
@@ -71,108 +79,83 @@ MR:RegisterModule({
             end
         end
 
-        local tierLabel, tierColor   = GetDungeonTier(vd["vault_d_max_level"])
-        vd["vault_d_tier_label"]     = tierLabel
-        vd["vault_d_tier_color"]     = tierColor
+        if vd["vault_r_progress"] > 0 then
+            local raidName, raidColor = GetRaidDiffName(vd["vault_r_diff_id"])
+            vd["vault_r_diff_label"] = raidName
+            vd["vault_r_diff_color"] = raidColor
+        else
+            vd["vault_r_diff_label"] = nil
+            vd["vault_r_diff_color"] = nil
+        end
 
-        local raidName, raidColor    = GetRaidDiffName(vd["vault_r_diff_id"])
-        vd["vault_r_diff_label"]     = raidName
-        vd["vault_r_diff_color"]     = raidColor
+        if vd["vault_d_progress"] > 0 then
+            local tierLabel, tierColor = GetDungeonTier(vd["vault_d_max_level"])
+            vd["vault_d_tier_label"] = tierLabel
+            vd["vault_d_tier_color"] = tierColor
+        else
+            vd["vault_d_tier_label"] = nil
+            vd["vault_d_tier_color"] = nil
+        end
+
+        local r = vd["vault_r_progress"]
+        vd["vault_r_slots"] = (r >= 6 and 3) or (r >= 4 and 2) or (r >= 2 and 1) or 0
+
+        local d = vd["vault_d_progress"]
+        vd["vault_d_slots"] = (d >= 8 and 3) or (d >= 4 and 2) or (d >= 1 and 1) or 0
+
+        local w = vd["vault_w_progress"]
+        vd["vault_w_slots"] = (w >= 8 and 3) or (w >= 4 and 2) or (w >= 2 and 1) or 0
     end,
 
     rows = {
         {
-            key              = "vault_r2",
-            label            = L["Vault_Raid2_Label"],
-            max              = 2,
-            vaultLabel       = L["Normal"],
-            vaultColor       = "#1eff00",
-            note             = L["Vault_Raid2_Note"],
-            liveKey          = "vault_r_progress",
+            key              = "vault_raid",
+            label            = L["Vault_Raid_Label"],
+            max              = 3,
+            liveKey          = "vault_r_slots",
             liveTierLabelKey = "vault_r_diff_label",
             liveTierColorKey = "vault_r_diff_color",
+            tooltipFunc = function(tt)
+                local vd   = MR.db.char.progress["great_vault"] or {}
+                local prog = vd["vault_r_progress"] or 0
+                tt:AddLine(" ")
+                tt:AddLine(string.format(L["Vault_TT_Raid_Header"], prog), 0.9, 0.7, 0.3)
+                SlotLine(tt, 1, prog, 2)
+                SlotLine(tt, 2, prog, 4)
+                SlotLine(tt, 3, prog, 6)
+            end,
         },
         {
-            key              = "vault_r4",
-            label            = L["Vault_Raid4_Label"],
-            max              = 4,
-            vaultLabel       = L["Heroic"],
-            vaultColor       = "#0070dd",
-            note             = L["Vault_Raid4_Note"],
-            liveKey          = "vault_r_progress",
-            liveTierLabelKey = "vault_r_diff_label",
-            liveTierColorKey = "vault_r_diff_color",
-        },
-        {
-            key              = "vault_r6",
-            label            = L["Vault_Raid6_Label"],
-            max              = 6,
-            vaultLabel       = L["Mythic"],
-            vaultColor       = "#ff8000",
-            note             = L["Vault_Raid6_Note"],
-            liveKey          = "vault_r_progress",
-            liveTierLabelKey = "vault_r_diff_label",
-            liveTierColorKey = "vault_r_diff_color",
-        },
-        {
-            key              = "vault_d1",
-            label            = L["Vault_Dungeon1_Label"],
-            max              = 1,
-            vaultLabel       = L["Veteran"],
-            vaultColor       = "#1eff00",
-            note             = L["Vault_Dungeon1_Note"],
-            liveKey          = "vault_d_progress",
+            key              = "vault_dungeon",
+            label            = L["Vault_Dungeon_Label"],
+            max              = 3,
+            liveKey          = "vault_d_slots",
             liveTierLabelKey = "vault_d_tier_label",
             liveTierColorKey = "vault_d_tier_color",
+            tooltipFunc = function(tt)
+                local vd   = MR.db.char.progress["great_vault"] or {}
+                local prog = vd["vault_d_progress"] or 0
+                tt:AddLine(" ")
+                tt:AddLine(string.format(L["Vault_TT_Dungeon_Header"], prog), 0.3, 0.8, 1)
+                SlotLine(tt, 1, prog, 1)
+                SlotLine(tt, 2, prog, 4)
+                SlotLine(tt, 3, prog, 8)
+            end,
         },
         {
-            key              = "vault_d4",
-            label            = L["Vault_Dungeon4_Label"],
-            max              = 4,
-            vaultLabel       = L["Champion"],
-            vaultColor       = "#f1c232",
-            note             = L["Vault_Dungeon4_Note"],
-            liveKey          = "vault_d_progress",
-            liveTierLabelKey = "vault_d_tier_label",
-            liveTierColorKey = "vault_d_tier_color",
-        },
-        {
-            key              = "vault_d8",
-            label            = L["Vault_Dungeon8_Label"],
-            max              = 8,
-            vaultLabel       = L["Hero"],
-            vaultColor       = "#0070dd",
-            note             = L["Vault_Dungeon8_Note"],
-            liveKey          = "vault_d_progress",
-            liveTierLabelKey = "vault_d_tier_label",
-            liveTierColorKey = "vault_d_tier_color",
-        },
-        {
-            key        = "vault_w2",
-            label      = L["Vault_World2_Label"],
-            max        = 2,
-            vaultLabel = L["Adventurer"],
-            vaultColor = "#b7b7b7",
-            note       = L["Vault_World2_Note"],
-            liveKey    = "vault_w_progress",
-        },
-        {
-            key        = "vault_w4",
-            label      = L["Vault_World4_Label"],
-            max        = 4,
-            vaultLabel = L["Champion"],
-            vaultColor = "#f1c232",
-            note       = L["Vault_World4_Note"],
-            liveKey    = "vault_w_progress",
-        },
-        {
-            key        = "vault_w8",
-            label      = L["Vault_World8_Label"],
-            max        = 8,
-            vaultLabel = L["Hero"],
-            vaultColor = "#0070dd",
-            note       = L["Vault_World8_Note"],
-            liveKey    = "vault_w_progress",
+            key         = "vault_world",
+            label       = L["Vault_World_Label"],
+            max         = 3,
+            liveKey     = "vault_w_slots",
+            tooltipFunc = function(tt)
+                local vd   = MR.db.char.progress["great_vault"] or {}
+                local prog = vd["vault_w_progress"] or 0
+                tt:AddLine(" ")
+                tt:AddLine(string.format(L["Vault_TT_World_Header"], prog), 0.78, 0.59, 0.42)
+                SlotLine(tt, 1, prog, 2)
+                SlotLine(tt, 2, prog, 4)
+                SlotLine(tt, 3, prog, 8)
+            end,
         },
     },
 })

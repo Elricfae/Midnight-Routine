@@ -258,13 +258,16 @@ local function ContentHeight(visible, W)
 end
 
 local function RebuildRaresFrame()
+    local wasShown = raresFrame and raresFrame:IsShown()
     if raresFrame then raresFrame:Hide(); raresFrame = nil end
     if MR.db and MR.db.profile.raresCollapsed then
         for k, v in pairs(MR.db.profile.raresCollapsed) do collapsed[k] = v end
     end
     raresFrame = BuildRaresFrame()
     MR.raresFrame = raresFrame
-    raresFrame:Show()
+    if wasShown then
+        raresFrame:Show()
+    end
     raresFrame:SetScale((MR.db and MR.db.profile.raresScale) or 1.0)
     RefreshRaresFrame()
 end
