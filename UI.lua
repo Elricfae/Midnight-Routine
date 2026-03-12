@@ -806,7 +806,7 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
 
     rowFrame:SetScript("OnEnter", function()
         hover:SetColorTexture(1, 1, 1, 0.04)
-        if row.currencyId then
+        if row.currencyId and not row.noBlizzardTooltip then
             GameTooltip:SetOwner(rowFrame, "ANCHOR_RIGHT")
             GameTooltip:SetCurrencyByID(row.currencyId)
             GameTooltip:AddLine(L["Tooltip_AutoBlizzard"], 0.4, 0.8, 1)
@@ -818,7 +818,7 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
             if row.tooltipFunc then
                 row.tooltipFunc(GameTooltip)
             end
-            if row.liveKey then
+            if row.liveKey or (row.currencyId and row.noBlizzardTooltip) then
                 GameTooltip:AddLine(L["Tooltip_AutoBlizzard"], 0.4, 0.8, 1)
             elseif row.questIds then
                 GameTooltip:AddLine(L["Tooltip_AutoQuest"], 0.4, 1, 0.6)

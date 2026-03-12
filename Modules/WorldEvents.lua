@@ -1,7 +1,5 @@
 local L = LibStub("AceLocale-3.0"):GetLocale("MidnightRoutine")
 
-local HOLIDAY_DARKMOON_FAIRE = 479
-
 local HOLIDAY_TIMEWALKING = {
     1056,
     1063,
@@ -17,101 +15,12 @@ local function IsHolidayActive(holidayId)
     return info ~= nil and info.startTime ~= nil and GetServerTime() >= info.startTime and GetServerTime() <= info.endTime
 end
 
-local function IsDarkmoonActive()
-    return IsHolidayActive(HOLIDAY_DARKMOON_FAIRE)
-end
-
 local function IsTimewalkingActive()
     for _, id in ipairs(HOLIDAY_TIMEWALKING) do
         if IsHolidayActive(id) then return true end
     end
     return false
 end
-
-local DARKMOON_PROFESSION_QUESTS = { 29513, 29514, 29515, 29516, 29517, 29518 }
-
-local function ScanDarkmoon(mod)
-    local db = MR.db.char.progress
-    if not db[mod.key] then db[mod.key] = {} end
-
-    local profDone = 0
-    for _, qid in ipairs(DARKMOON_PROFESSION_QUESTS) do
-        if C_QuestLog.IsQuestFlaggedCompleted(qid) then
-            profDone = profDone + 1
-        end
-    end
-    db[mod.key]["dmf_profession"] = math.min(profDone, 6)
-
-    local function q(qid) return C_QuestLog.IsQuestFlaggedCompleted(qid) and 1 or 0 end
-    db[mod.key]["dmf_dungeon"]  = q(29525)
-    db[mod.key]["dmf_tonk"]     = q(29520)
-    db[mod.key]["dmf_shooting"] = q(29526)
-    db[mod.key]["dmf_ring"]     = q(29524)
-    db[mod.key]["dmf_cannon"]   = q(29527)
-    db[mod.key]["dmf_sword"]    = q(29529)
-end
-
-MR:RegisterModule({
-    key         = "darkmoon_faire",
-    label       = L["DMF_Title"],
-    labelColor  = "#cc99ff",
-    resetType   = "weekly",
-    defaultOpen = true,
-    isVisible   = IsDarkmoonActive,
-    onScan      = ScanDarkmoon,
-
-    rows = {
-        {
-            key     = "dmf_profession",
-            label   = L["DMF_Prof_Label"],
-            max     = 6,
-            note    = L["DMF_Prof_Note"],
-            liveKey = "dmf_profession",
-        },
-        {
-            key     = "dmf_dungeon",
-            label   = L["DMF_Dungeon_Label"],
-            max     = 1,
-            note    = L["DMF_Dungeon_Note"],
-            liveKey = "dmf_dungeon",
-        },
-        {
-            key     = "dmf_tonk",
-            label   = L["DMF_Tonk_Label"],
-            max     = 1,
-            note    = L["DMF_Tonk_Note"],
-            liveKey = "dmf_tonk",
-        },
-        {
-            key     = "dmf_shooting",
-            label   = L["DMF_Hammer_Label"],
-            max     = 1,
-            note    = L["DMF_Hammer_Note"],
-            liveKey = "dmf_shooting",
-        },
-        {
-            key     = "dmf_ring",
-            label   = L["DMF_Ring_Label"],
-            max     = 1,
-            note    = L["DMF_Ring_Note"],
-            liveKey = "dmf_ring",
-        },
-        {
-            key     = "dmf_cannon",
-            label   = L["DMF_Cannon_Label"],
-            max     = 1,
-            note    = L["DMF_Cannon_Note"],
-            liveKey = "dmf_cannon",
-        },
-        {
-            key     = "dmf_sword",
-            label   = L["DMF_Target_Label"],
-            max     = 1,
-            note    = L["DMF_Target_Note"],
-            liveKey = "dmf_sword",
-        },
-    },
-})
 
 local MAPID_ISLE_OF_DORN     = 2248
 local MAPID_RINGING_DEEPS    = 2249

@@ -802,6 +802,14 @@ SlashCmdList["MIDROUTE"] = function(msg)
     elseif msg == "rares"   then MR:ToggleRares()
     elseif msg == "rares config" then MR:ToggleRaresConfig()
     elseif msg == "gathering" then MR:ToggleGatheringLocations()
+    elseif msg == "dmf" then
+        MR.debugDMF = not MR.debugDMF
+        if MR.debugDMF then
+            print("|cffcc99ff[MidnightRoutine]|r Darkmoon Faire test mode ON — module forced visible")
+        else
+            print("|cffcc99ff[MidnightRoutine]|r Darkmoon Faire test mode OFF")
+        end
+        MR:RefreshUI()
     else
         print(L["Chat_Commands"])
     end

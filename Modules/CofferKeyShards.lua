@@ -12,7 +12,6 @@ MR:RegisterModule({
             label      = L["CofferKey_Label"],
             currencyId = 3310,
             max        = 600,
-            note       = L["CofferKey_Note"],
         },
     },
 })
