@@ -257,10 +257,10 @@ L["PvP_Sparks_ZA"] = "戰爭火花：祖阿曼"
 L["PvP_Sparks_Harandar"] = "戰爭火花：哈朗達"
 L["PvP_Sparks_Voidstorm"] = "戰爭火花：虛空風暴"
 L["Tooltip_No_Sparks"] = "|cffaaaaaa？沒有活躍的火花變量。|r"
-L["PvP_Preparing_Label"] = true
-L["PvP_Preparing_Note"] = true
-L["PvP_Brawl_Label"] = true
-L["PvP_Brawl_Note"] = true
+L["PvP_Preparing_Label"] = "|cffcc3333Preparing for Battle:|r"
+L["PvP_Preparing_Note"] = "Kill 20 Void Creatures & shoot 5 with turrets in Slayer's Rise\nRewards: 500 Honor - 1,000 Slayer's Duellum"
+L["PvP_Brawl_Label"] = "|cffcc3333Something Different:|r"
+L["PvP_Brawl_Note"] = "Win a PvP Brawl\nRewards: Mark of Honor - 250g"
 L["PvP_Training_Label"] = "|cffcc3333破曉訓練：|r"
 L["PvP_Training_Note"] = "完成3場戰場 — 4周英雄裝備獎勵鏈的第一周\n獎勵：英雄寶庫 + 新手戰鬥者勳章"
 
