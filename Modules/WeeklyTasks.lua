@@ -85,7 +85,7 @@ MR:RegisterModule({
             label    = L["Weekly_Soiree_Label"],
             max      = 1,
             note     = L["Weekly_Soiree_Note"],
-            questIds = { 89289 }, 
+            questIds = { 89289, 93889, 91966 }, 
             tooltipFunc = function(tip)
                 local variants = {
                     { quest = 93889, name = "Midnight: Saltheril's Soiree" },

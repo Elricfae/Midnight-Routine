@@ -119,6 +119,11 @@ function MR:ApplyScaleToAll(v)
     if rnf and rnf:IsShown() then rnf:SetScale(v) end
     local gf = self.gatheringLocationsFrame
     if gf and gf:IsShown() then gf:SetScale(v) end
+    if self.detachedFrames then
+        for _, frame in pairs(self.detachedFrames) do
+            frame:SetScale(v)
+        end
+    end
     if self.RepopulateRaresConfig     then self:RepopulateRaresConfig() end
     if self.RepopulateGatheringConfig then self:RepopulateGatheringConfig() end
     if self.RepopulateRenownConfig    then self:RepopulateRenownConfig() end
@@ -204,9 +209,47 @@ function MR:IsModuleOpen(key)
     return s.open ~= false
 end
 
+function MR:IsModuleDetached(key)
+    local s = self.db.char.modules[key]
+    return s and s.detached == true or false
+end
+
 function MR:SetModuleOpen(key, open)
     if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
     self.db.char.modules[key].open = open
+end
+
+function MR:SetModuleDetached(key, detached)
+    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
+    self.db.char.modules[key].detached = detached and true or false
+end
+
+function MR:GetDetachedModulePosition(key)
+    local s = self.db.char.modules[key]
+    return s and s.detachedPos or nil
+end
+
+function MR:SetDetachedModulePosition(key, point, relPoint, x, y)
+    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
+    self.db.char.modules[key].detachedPos = {
+        point = point,
+        relPoint = relPoint,
+        x = x,
+        y = y,
+    }
+end
+
+function MR:GetDetachedModuleSize(key)
+    local s = self.db.char.modules[key]
+    return s and s.detachedSize or nil
+end
+
+function MR:SetDetachedModuleSize(key, width, height)
+    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
+    self.db.char.modules[key].detachedSize = {
+        width = width,
+        height = height,
+    }
 end
 
 function MR:SetModuleEnabled(key, enabled)
@@ -602,6 +645,7 @@ function MR:UpdateInstanceFrameVisibility()
         }
 
         if self.frame then self.frame:Hide() end
+        if self.HideDetachedModules then self:HideDetachedModules() end
         if self.HideConfig then self:HideConfig() end
         if self.HideRenown then self:HideRenown(false) end
         if self.HideRares then self:HideRares(false) end
@@ -616,6 +660,7 @@ function MR:UpdateInstanceFrameVisibility()
     self._instanceRestoreState = nil
 
     if state.panel and self.frame then self.frame:Show() end
+    if self.ShowDetachedModules then self:ShowDetachedModules() end
     if state.renown and self.EnsureRenownShown then self:EnsureRenownShown() end
     if state.rares and self.EnsureRaresShown then self:EnsureRaresShown() end
     if state.gathering and self.EnsureGatheringLocationsShown then

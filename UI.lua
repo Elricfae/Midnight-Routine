@@ -28,6 +28,11 @@ local function PeekFrameList()
     if MR.raresFrame             then list[#list+1] = MR.raresFrame end
     if MR.renownFrame            then list[#list+1] = MR.renownFrame end
     if MR.gatheringLocationsFrame then list[#list+1] = MR.gatheringLocationsFrame end
+    if MR.detachedFrames then
+        for _, f in pairs(MR.detachedFrames) do
+            list[#list+1] = f
+        end
+    end
     return list
 end
 
@@ -106,6 +111,11 @@ local function ApplyTheme()
         if MR._scrollBg    then MR._scrollBg:SetColorTexture(COL.bg[1], COL.bg[2], COL.bg[3], 0.96 * v) end
         if MR._titleAccent then MR._titleAccent:SetAlpha(v) end
     end
+end
+
+local function GetModuleWindowTitle(mod)
+    local cleanLabel = mod.label:gsub("|c%x%x%x%x%x%x%x%x(.-)%|r", "%1"):gsub("|[cCrR]%x*", "")
+    return cleanLabel
 end
 
 local function ApplyWidth(newW)
@@ -528,6 +538,152 @@ function MR:BuildUI()
     ApplyTheme()
 end
 
+function MR:HideDetachedModules()
+    if not self.detachedFrames then return end
+    for _, frame in pairs(self.detachedFrames) do
+        frame:Hide()
+    end
+end
+
+function MR:ShowDetachedModules()
+    if self._instanceFramesHidden then return end
+    if not self.detachedFrames then return end
+    for key, frame in pairs(self.detachedFrames) do
+        local mod = self.moduleByKey[key]
+        local modVisible = mod and (not mod.isVisible or mod:isVisible())
+        if self:IsModuleDetached(key) and self:IsModuleEnabled(key) and modVisible then
+            frame:Show()
+        end
+    end
+end
+
+function MR:EnsureDetachedFrame(mod)
+    self.detachedFrames = self.detachedFrames or {}
+    local frame = self.detachedFrames[mod.key]
+    if frame then return frame end
+
+    local savedSize = self:GetDetachedModuleSize(mod.key)
+    local defaultW = math.max(220, (self.db.profile.width or 260) - 20)
+    local defaultH = HEADER_HEIGHT + 120
+    local title = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    title:SetSize(savedSize and savedSize.width or defaultW, savedSize and savedSize.height or defaultH)
+    title:SetFrameStrata("MEDIUM")
+    title:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    title:SetBackdropColor(COL.bg[1], COL.bg[2], COL.bg[3], COL.bg[4])
+    title:SetBackdropBorderColor(0.15, 0.15, 0.2, 1)
+    title:SetClampedToScreen(true)
+    title:SetMovable(true)
+
+    local pos = self:GetDetachedModulePosition(mod.key)
+    if pos and pos.point then
+        title:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
+    else
+        title:SetPoint("CENTER", UIParent, "CENTER", 40, -40)
+    end
+
+    local dragBar = CreateFrame("Frame", nil, title, "BackdropTemplate")
+    dragBar:SetPoint("TOPLEFT", title, "TOPLEFT", 0, 0)
+    dragBar:SetPoint("TOPRIGHT", title, "TOPRIGHT", 0, 0)
+    dragBar:SetHeight(6)
+    dragBar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    dragBar:SetBackdropColor(0.04, 0.10, 0.20, 1)
+    dragBar:SetBackdropBorderColor(0.10, 0.28, 0.35, 1)
+    dragBar:EnableMouse(false)
+
+    local dragAccent = dragBar:CreateTexture(nil, "ARTWORK")
+    dragAccent:SetPoint("TOPLEFT", dragBar, "TOPLEFT", 0, 0)
+    dragAccent:SetPoint("BOTTOMLEFT", dragBar, "BOTTOMLEFT", 0, 0)
+    dragAccent:SetWidth(3)
+    dragAccent:SetColorTexture(0.16, 0.78, 0.75, 1)
+
+    local scroll = CreateFrame("ScrollFrame", nil, title)
+    scroll:SetPoint("TOPLEFT", title, "TOPLEFT", 4, -8)
+    scroll:SetPoint("BOTTOMRIGHT", title, "BOTTOMRIGHT", -4, 4)
+    scroll:EnableMouseWheel(true)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
+    content:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 0, 0)
+    content:SetHeight(1)
+    scroll:SetScrollChild(content)
+    scroll:SetScript("OnMouseWheel", function(_, delta)
+        local cur = scroll:GetVerticalScroll()
+        local max = math.max(content:GetHeight() - scroll:GetHeight(), 0)
+        scroll:SetVerticalScroll(math.max(0, math.min(cur - delta * 24, max)))
+    end)
+
+    local dragger = CreateFrame("Frame", nil, title)
+    dragger:SetSize(12, 12)
+    dragger:SetPoint("BOTTOMRIGHT", title, "BOTTOMRIGHT", -1, 1)
+    dragger:SetFrameLevel(title:GetFrameLevel() + 10)
+    dragger:EnableMouse(true)
+
+    local dTex = dragger:CreateTexture(nil, "OVERLAY")
+    dTex:SetAllPoints()
+    dTex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+
+    dragger:SetScript("OnEnter", function()
+        if not MR.db.profile.locked then
+            dTex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+        end
+    end)
+    dragger:SetScript("OnLeave", function()
+        dTex:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    end)
+
+    local dragStartW, dragStartH, dragStartX, dragStartY
+    dragger:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" and not MR.db.profile.locked then
+            dragStartW = title:GetWidth()
+            dragStartH = title:GetHeight()
+            dragStartX, dragStartY = GetCursorPosition()
+            local scale = title:GetEffectiveScale()
+            dragStartX = dragStartX / scale
+            dragStartY = dragStartY / scale
+            dragger._dragging = true
+        end
+    end)
+    dragger:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" and dragger._dragging then
+            dragger._dragging = false
+            local newW = math.max(180, math.min(PANEL_MAX_WIDTH, math.floor(title:GetWidth())))
+            local newH = math.max(HEADER_HEIGHT + 48, math.min(PANEL_MAX_HEIGHT, math.floor(title:GetHeight())))
+            title:SetWidth(newW)
+            title:SetHeight(newH)
+            MR:SetDetachedModuleSize(mod.key, newW, newH)
+            MR:RefreshUI()
+        end
+    end)
+    dragger:SetScript("OnUpdate", function()
+        if not dragger._dragging then return end
+        local cx, cy = GetCursorPosition()
+        local scale = title:GetEffectiveScale()
+        cx = cx / scale
+        cy = cy / scale
+        local dx = cx - dragStartX
+        local dy = dragStartY - cy
+        local newW = math.max(180, math.min(PANEL_MAX_WIDTH, dragStartW + dx))
+        local newH = math.max(HEADER_HEIGHT + 48, math.min(PANEL_MAX_HEIGHT, dragStartH + dy))
+        title:SetWidth(newW)
+        title:SetHeight(newH)
+    end)
+
+    frame = title
+    frame.scroll = scroll
+    frame.content = content
+    frame._dragBar = dragBar
+    frame._dragAccent = dragAccent
+    frame._dragger = dragger
+    frame._widgets = {}
+    frame._modKey = mod.key
+    self.detachedFrames[mod.key] = frame
+    return frame
+end
+
 function MR:RefreshUI()
     if not self.frame or not self.content then return end
 
@@ -551,7 +707,7 @@ function MR:RefreshUI()
     local visibleMods = {}
     for _, mod in ipairs(MR:GetOrderedModules()) do
         local modVisible = not mod.isVisible or mod:isVisible()
-        if MR:IsModuleEnabled(mod.key) and modVisible then
+        if MR:IsModuleEnabled(mod.key) and modVisible and not MR:IsModuleDetached(mod.key) then
             local h = self:MeasureSection(mod)
             table.insert(visibleMods, { mod = mod, h = h })
             for _, row in ipairs(mod.rows) do
@@ -628,6 +784,64 @@ function MR:RefreshUI()
     else
         if self._dragger then self._dragger:Show() end
     end
+
+    self.detachedFrames = self.detachedFrames or {}
+    local seenDetached = {}
+    for _, mod in ipairs(MR:GetOrderedModules()) do
+        local modVisible = not mod.isVisible or mod:isVisible()
+        local detached = MR:IsModuleDetached(mod.key)
+        local frame = self.detachedFrames[mod.key]
+        if detached and MR:IsModuleEnabled(mod.key) and modVisible then
+            frame = self:EnsureDetachedFrame(mod)
+            seenDetached[mod.key] = true
+            local savedSize = self:GetDetachedModuleSize(mod.key)
+            local alpha = self.db.profile.frameAlpha or 1.0
+            frame:SetScale(self.db.profile.scale or 1.0)
+            frame:SetBackdropColor(COL.bg[1], COL.bg[2], COL.bg[3], COL.bg[4] * alpha)
+            frame:SetBackdropBorderColor(0.15, 0.15, 0.2, alpha)
+            if savedSize and savedSize.width and savedSize.height then
+                frame:SetSize(savedSize.width, savedSize.height)
+            end
+            if frame._dragBar then
+                frame._dragBar:SetBackdropColor(0.05, 0.12, 0.22, alpha)
+                frame._dragBar:SetBackdropBorderColor(0.10, 0.28, 0.35, alpha)
+            end
+            if frame._dragAccent then
+                frame._dragAccent:SetAlpha(alpha)
+            end
+            for _, w in ipairs(frame._widgets or {}) do
+                w:Hide()
+                w:SetParent(nil)
+            end
+            frame._widgets = {}
+
+            local scrollWidth = frame.scroll and frame.scroll:GetWidth() or (frame:GetWidth() - 8)
+            frame.content:SetWidth(math.max(scrollWidth, 1))
+            local sectionHeight = self:BuildSection(mod, 0, 0, math.max(scrollWidth, 1), 1, frame.content, frame._widgets, { detached = true })
+            frame.content:SetHeight(math.max(sectionHeight, 1))
+            if frame.scroll then
+                local maxScroll = math.max(frame.content:GetHeight() - frame.scroll:GetHeight(), 0)
+                if frame.scroll:GetVerticalScroll() > maxScroll then
+                    frame.scroll:SetVerticalScroll(maxScroll)
+                end
+            end
+            if not (savedSize and savedSize.height) then
+                frame:SetHeight(math.max(sectionHeight + 12, HEADER_HEIGHT + 48))
+            end
+
+            if not self._instanceFramesHidden then
+                frame:Show()
+            end
+        elseif frame then
+            frame:Hide()
+        end
+    end
+
+    for key, frame in pairs(self.detachedFrames) do
+        if not seenDetached[key] then
+            frame:Hide()
+        end
+    end
 end
 
 function MR:MeasureSection(mod)
@@ -649,7 +863,10 @@ function MR:MeasureSection(mod)
     return h
 end
 
-function MR:BuildSection(mod, yOff, xOff, colW, col)
+function MR:BuildSection(mod, yOff, xOff, colW, col, parent, widgetBucket, opts)
+    parent = parent or self.content
+    widgetBucket = widgetBucket or self.widgets
+    opts = opts or {}
     local isOpen = MR:IsModuleOpen(mod.key)
 
     local secDone, secTotal = 0, 0
@@ -662,10 +879,13 @@ function MR:BuildSection(mod, yOff, xOff, colW, col)
     end
     local allDone = (secTotal > 0) and (secDone == secTotal)
 
-    local hdrFrame = CreateFrame("Frame", nil, self.content)
-    hdrFrame:SetPoint("TOPLEFT", self.content, "TOPLEFT", xOff, -yOff)
+    local hdrFrame = CreateFrame("Frame", nil, parent)
+    hdrFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, -yOff)
     hdrFrame:SetSize(colW, HEADER_HEIGHT)
     hdrFrame:EnableMouse(true)
+    if opts.detached then
+        hdrFrame:RegisterForDrag("LeftButton")
+    end
 
     local hdrBg = hdrFrame:CreateTexture(nil, "BACKGROUND")
     hdrBg:SetAllPoints()
@@ -714,17 +934,50 @@ function MR:BuildSection(mod, yOff, xOff, colW, col)
     arrow:SetVertexColor(0.45, 0.45, 0.45)
 
     hdrFrame:EnableMouse(true)
+    hdrFrame:SetScript("OnMouseDown", function(_, button)
+        if opts.detached and button == "LeftButton" then
+            hdrFrame._pressed = true
+            hdrFrame._dragged = false
+        end
+    end)
+    hdrFrame:SetScript("OnDragStart", function()
+        if not opts.detached or MR.db.profile.locked then return end
+        hdrFrame._dragged = true
+        local host = parent and parent:GetParent()
+        if host then
+            host:StartMoving()
+        end
+    end)
+    hdrFrame:SetScript("OnDragStop", function()
+        if not opts.detached then return end
+        local host = parent and parent:GetParent()
+        if host then
+            host:StopMovingOrSizing()
+            local pt, _, rp, x, y = host:GetPoint()
+            MR:SetDetachedModulePosition(mod.key, pt, rp, x, y)
+        end
+    end)
     hdrFrame:SetScript("OnMouseUp", function(_, button)
+        if opts.detached and button == "LeftButton" and hdrFrame._dragged then
+            hdrFrame._pressed = false
+            hdrFrame._dragged = false
+            return
+        end
         if button == "LeftButton" then
             MR:SetModuleOpen(mod.key, not MR:IsModuleOpen(mod.key))
             MR:RefreshUI()
+        elseif button == "RightButton" then
+            MR:SetModuleDetached(mod.key, not opts.detached)
+            MR:RefreshUI()
         end
+        hdrFrame._pressed = false
     end)
     hdrFrame:SetScript("OnEnter", function()
         hdrHover:SetColorTexture(1, 1, 1, 0.05)
         GameTooltip:SetOwner(hdrFrame, "ANCHOR_RIGHT")
         GameTooltip:SetText(mod.label, 1, 1, 1)
         GameTooltip:AddLine(L["Tooltip_ExpandCollapse"], 0.5, 0.5, 0.5)
+        GameTooltip:AddLine(opts.detached and "Right-click to dock back" or "Right-click to detach", 0.5, 0.8, 1)
         GameTooltip:Show()
     end)
     hdrFrame:SetScript("OnLeave", function()
@@ -732,17 +985,19 @@ function MR:BuildSection(mod, yOff, xOff, colW, col)
         GameTooltip:Hide()
     end)
 
-    table.insert(self.widgets, hdrFrame)
-    table.insert(self.sectionRegistry, { frame = hdrFrame, modKey = mod.key, col = col or 1, yOff = yOff })
+    table.insert(widgetBucket, hdrFrame)
+    if widgetBucket == self.widgets then
+        table.insert(self.sectionRegistry, { frame = hdrFrame, modKey = mod.key, col = col or 1, yOff = yOff })
+    end
 
     yOff = yOff + HEADER_HEIGHT
 
-    local div = CreateFrame("Frame", nil, self.content, "BackdropTemplate")
-    div:SetPoint("TOPLEFT", self.content, "TOPLEFT", xOff, -yOff)
+    local div = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    div:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, -yOff)
     div:SetSize(colW, 1)
     div:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
     div:SetBackdropColor(1, 1, 1, 0.06)
-    table.insert(self.widgets, div)
+    table.insert(widgetBucket, div)
 
     if isOpen then
         local hideComplete = MR:IsModuleHideComplete(mod.key)
@@ -752,27 +1007,31 @@ function MR:BuildSection(mod, yOff, xOff, colW, col)
                 local done       = MR:GetProgress(mod.key, row.key)
                 local isComplete = not row.noMax and done >= row.max
                 if not (hideComplete and isComplete) then
-                    yOff = self:BuildRow(mod, row, done, yOff, false, xOff, colW)
+                    yOff = self:BuildRow(mod, row, done, yOff, false, xOff, colW, parent, widgetBucket)
                 end
             end
         end
     end
 
-    self.sectionRegistry[#self.sectionRegistry].bottom = yOff
+    if widgetBucket == self.widgets then
+        self.sectionRegistry[#self.sectionRegistry].bottom = yOff
+    end
 
     return yOff
 end
 
-function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
+function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW, parent, widgetBucket)
     xOff = xOff or 0
     colW = colW or ((MR.db.profile.width or 260) - 13)
+    parent = parent or self.content
+    widgetBucket = widgetBucket or self.widgets
     local isAutoTracked = (row.questIds ~= nil) or (row.liveKey ~= nil) or (row.spellId ~= nil) or (row.currencyId ~= nil)
     local isComplete    = not row.noMax and done >= row.max
     local GHOST_H       = 8
     local rowH          = collapsed and GHOST_H or ROW_HEIGHT
 
-    local rowFrame = CreateFrame("Frame", nil, self.content)
-    rowFrame:SetPoint("TOPLEFT", self.content, "TOPLEFT", xOff, -yOff)
+    local rowFrame = CreateFrame("Frame", nil, parent)
+    rowFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, -yOff)
     rowFrame:SetSize(colW, rowH)
     rowFrame:EnableMouse(true)
 
@@ -796,7 +1055,7 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
         end)
         rowFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-        table.insert(self.widgets, rowFrame)
+        table.insert(widgetBucket, rowFrame)
         return yOff + rowH
     end
 
@@ -980,7 +1239,7 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW)
         table.insert(MR._timerRows, rowFrame)
     end
 
-    table.insert(self.widgets, rowFrame)
+    table.insert(widgetBucket, rowFrame)
     return yOff + rowH
 end
 
