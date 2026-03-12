@@ -5,6 +5,7 @@
 	<Script file="zhTW.lua"/>
 	<Script file="esMX.lua"/>
 	<Script file="deDe.lua"/>
+	<Script file="ruRU.lua"/>
 </Ui>
 
 
