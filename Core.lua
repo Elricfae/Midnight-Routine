@@ -67,10 +67,15 @@ local DEFAULTS = {
         syncWindowScale     = false,
         syncWindowFontSize  = false,
         peekOnHover         = false,
+        characterWindowLayout = false,
+        altBoardHiddenCharacters = {},
+        altBoardShowHidden = false,
+        altBoardCollapsedModules = {},
     },
     char = {
         progress = {},
         lastWeek = 0,
+        lastSyncAt = 0,
         manualOverrides = {},
         welcomeSeen = false,
         raresKills = {},
@@ -80,6 +85,7 @@ local DEFAULTS = {
         modules      = {},
         moduleOrder  = {},
         settingsMigrated = false,
+        windowLayout = {},
     },
 }
 
@@ -118,6 +124,43 @@ local function IsTableEmpty(t)
     return type(t) ~= "table" or next(t) == nil
 end
 
+local function ParseCharacterKey(charKey)
+    if type(charKey) ~= "string" then
+        return "Unknown", ""
+    end
+
+    local name, realm = charKey:match("^(.-)%s%-%s(.+)$")
+    if name and realm then
+        return name, realm
+    end
+
+    return charKey, ""
+end
+
+local function CleanAccountLabel(text)
+    if type(text) ~= "string" then
+        return tostring(text or "")
+    end
+
+    return text:gsub("|c%x%x%x%x%x%x%x%x(.-)%|r", "%1"):gsub("|[cCrR]%x*", "")
+end
+
+local function HasAnyTableValue(t)
+    return type(t) == "table" and next(t) ~= nil
+end
+
+local function IsAltBoardModule(mod)
+    if not mod or not mod.key then
+        return false
+    end
+
+    if mod.resetType == "weekly" then
+        return true
+    end
+
+    return mod.key:match("^story_campaign_") ~= nil
+end
+
 function MR:RegisterModule(def)
     assert(def.key,   "MR module missing .key")
     assert(def.label, "MR module missing .label")
@@ -130,6 +173,173 @@ end
 function MR:GetProgress(moduleKey, rowKey)
     local m = self.db.char.progress[moduleKey]
     return m and m[rowKey] or 0
+end
+
+function MR:GetCurrentCharacterKey()
+    if self.db and self.db.keys and self.db.keys.char then
+        return self.db.keys.char
+    end
+
+    local name, realm = UnitFullName and UnitFullName("player")
+    if name and realm and realm ~= "" then
+        return string.format("%s - %s", name, realm)
+    end
+
+    return UnitName and UnitName("player") or "Unknown"
+end
+
+function MR:GetWarbandWeeklyData()
+    if not (self and self.db and self.db.sv and self.db.sv.char) then
+        return {}
+    end
+
+    local results = {}
+    local currentKey = self:GetCurrentCharacterKey()
+    local resetAt = self.GetLastResetTimestamp and self:GetLastResetTimestamp() or 0
+    local hiddenChars = (self.db and self.db.profile and self.db.profile.altBoardHiddenCharacters) or {}
+    local showHidden = self.db and self.db.profile and self.db.profile.altBoardShowHidden == true
+
+    for charKey, charData in pairs(self.db.sv.char) do
+        if type(charData) == "table" and type(charData.progress) == "table" then
+            local name, realm = ParseCharacterKey(charKey)
+            local lastSyncAt = charData.lastSyncAt or 0
+            local stale = resetAt > 0 and lastSyncAt > 0 and lastSyncAt < resetAt
+            local hidden = hiddenChars[charKey] == true
+            local snapshot = {
+                key = charKey,
+                name = name,
+                realm = realm,
+                isCurrent = (charKey == currentKey),
+                stale = stale,
+                hidden = hidden,
+                lastSyncAt = lastSyncAt,
+                lastResetAt = charData.lastResetAt or 0,
+                modules = {},
+                totalRows = 0,
+                doneRows = 0,
+                activeRows = 0,
+            }
+
+            for _, mod in ipairs(self.modules) do
+                if IsAltBoardModule(mod) then
+                    local moduleSettings = type(charData.modules) == "table" and charData.modules[mod.key] or nil
+                    local moduleEnabled = not (moduleSettings and moduleSettings.enabled == false)
+                    local moduleVisible = moduleEnabled and (not mod.isVisible or mod:isVisible())
+                    local modProgress = charData.progress[mod.key] or {}
+                    local hasProfessionData = (not mod.profSkillLine)
+                        or HasAnyTableValue(modProgress)
+                        or (type(charData.manualOverrides) == "table" and HasAnyTableValue(charData.manualOverrides[mod.key]))
+                        or (moduleSettings ~= nil)
+
+                    if moduleVisible and hasProfessionData then
+                        local moduleEntry = {
+                            key = mod.key,
+                            label = CleanAccountLabel(mod.label),
+                            color = mod.labelColor or "#ffffff",
+                            rows = {},
+                            totalRows = 0,
+                            doneRows = 0,
+                        }
+
+                        for _, row in ipairs(mod.rows) do
+                            local rowVisible = (not row.isVisible or row.isVisible())
+                            local rowEnabled = not (moduleSettings and moduleSettings.hiddenRows and moduleSettings.hiddenRows[row.key] == false)
+
+                            if rowVisible and rowEnabled then
+                                local value = stale and 0 or tonumber(modProgress[row.key]) or 0
+                                local maxValue = tonumber(row.max) or 0
+                                local complete = (not row.noMax) and maxValue > 0 and value >= maxValue
+                                local rowLabel = CleanAccountLabel(row.label)
+                                local displayValue
+
+                                if row.countText and not stale then
+                                    displayValue = row.countText
+                                elseif row.noMax then
+                                    displayValue = tostring(value)
+                                else
+                                    displayValue = string.format("%d / %d", value, maxValue)
+                                end
+
+                                table.insert(moduleEntry.rows, {
+                                    key = row.key,
+                                    label = rowLabel,
+                                    value = value,
+                                    max = maxValue,
+                                    noMax = row.noMax and true or false,
+                                    complete = complete,
+                                    displayValue = displayValue,
+                                    accentLabel = (not stale and (modProgress[row.liveTierLabelKey or ""] or row.vaultLabel)) or nil,
+                                    accentColor = (not stale and (modProgress[row.liveTierColorKey or ""] or row.vaultColor)) or nil,
+                                })
+
+                                moduleEntry.totalRows = moduleEntry.totalRows + 1
+                                snapshot.totalRows = snapshot.totalRows + 1
+
+                                if complete then
+                                    moduleEntry.doneRows = moduleEntry.doneRows + 1
+                                    snapshot.doneRows = snapshot.doneRows + 1
+                                elseif value > 0 then
+                                    snapshot.activeRows = snapshot.activeRows + 1
+                                end
+                            end
+                        end
+
+                        if moduleEntry.totalRows > 0 and (mod.resetType == "weekly" or moduleEntry.doneRows < moduleEntry.totalRows) then
+                            table.insert(snapshot.modules, moduleEntry)
+                        end
+                    end
+                end
+            end
+
+            if snapshot.totalRows > 0 and ((showHidden and hidden) or ((not showHidden) and (not hidden))) then
+                table.insert(results, snapshot)
+            end
+        end
+    end
+
+    table.sort(results, function(a, b)
+        if a.isCurrent ~= b.isCurrent then
+            return a.isCurrent
+        end
+        if a.stale ~= b.stale then
+            return not a.stale
+        end
+        if a.doneRows ~= b.doneRows then
+            return a.doneRows > b.doneRows
+        end
+        if a.realm ~= b.realm then
+            return a.realm < b.realm
+        end
+        return a.name < b.name
+    end)
+
+    return results
+end
+
+function MR:IsAltBoardCharacterHidden(charKey)
+    if not (self and self.db and self.db.profile and charKey) then
+        return false
+    end
+
+    return self.db.profile.altBoardHiddenCharacters
+        and self.db.profile.altBoardHiddenCharacters[charKey] == true
+        or false
+end
+
+function MR:SetAltBoardCharacterHidden(charKey, hidden)
+    if not (self and self.db and self.db.profile and charKey) then
+        return
+    end
+
+    if not self.db.profile.altBoardHiddenCharacters then
+        self.db.profile.altBoardHiddenCharacters = {}
+    end
+
+    if hidden then
+        self.db.profile.altBoardHiddenCharacters[charKey] = true
+    else
+        self.db.profile.altBoardHiddenCharacters[charKey] = nil
+    end
 end
 
 function MR:SetProgress(moduleKey, rowKey, value, maxVal)
@@ -361,6 +571,36 @@ function MR:SetRowEnabled(modKey, rowKey, enabled)
     self.db.char.modules[modKey].hiddenRows[rowKey] = enabled and true or false
 end
 
+function MR:IsCharacterWindowLayoutEnabled()
+    return self.db and self.db.profile and self.db.profile.characterWindowLayout == true
+end
+
+function MR:GetWindowLayoutValue(key)
+    if not (self and self.db and key) then return nil end
+
+    if self:IsCharacterWindowLayoutEnabled() then
+        local charLayout = self.db.char and self.db.char.windowLayout
+        if charLayout and charLayout[key] ~= nil then
+            return charLayout[key]
+        end
+    end
+
+    return self.db.profile[key]
+end
+
+function MR:SetWindowLayoutValue(key, value)
+    if not (self and self.db and key) then return end
+
+    if self:IsCharacterWindowLayoutEnabled() then
+        if not self.db.char.windowLayout then
+            self.db.char.windowLayout = {}
+        end
+        self.db.char.windowLayout[key] = value
+    else
+        self.db.profile[key] = value
+    end
+end
+
 function MR:GetHeaderColor(modKey)
     if self.db.profile.headerColors and self.db.profile.headerColors[modKey] then
         return self.db.profile.headerColors[modKey]
@@ -478,6 +718,8 @@ function MR:Scan()
     if self._scanSuppressedUntil and GetTime() < self._scanSuppressedUntil then
         return
     end
+
+    self.db.char.lastSyncAt = GetServerTime()
 
     local progress = self.db.char.progress
     local dirty    = false
@@ -673,8 +915,8 @@ function MR:DoWeeklyReset()
 
     self._scanSuppressedUntil = GetTime() + 15
 
-    for _, mod in ipairs(self.modules) do
-        if mod.resetType == "weekly" then
+            for _, mod in ipairs(self:GetOrderedModules()) do
+                if mod.resetType == "weekly" then
             self.db.char.progress[mod.key] = {}
             if self.db.char.manualOverrides then
                 self.db.char.manualOverrides[mod.key] = nil
@@ -899,6 +1141,7 @@ function MR:OnEnable()
 end
 
 function MR:OnEnteringWorld()
+    self.db.char.lastSyncAt = GetServerTime()
     self:RefreshPlayerProfessions()
     self:BuildSpellIndex()
     local temporarilyHidden = self._toggleRestoreState ~= nil
