@@ -3,13 +3,13 @@ local L = LibStub("AceLocale-3.0"):GetLocale("MidnightRoutine")
 
 local function ItemLabel(itemID, fallback, color)
     local itemName = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)
-    return string.format("|cff%s%s:|r", color or "e8c96e", itemName or fallback)
+    return string.format("|cff%s%s:|r", color or "e8c96e", itemName or fallback or ("Item " .. tostring(itemID)))
 end
 
 local function CurrencyLabel(currencyID, fallback, color)
     local info = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(currencyID)
     local currencyName = info and info.name
-    return string.format("|cff%s%s:|r", color or "e8c96e", currencyName or fallback)
+    return string.format("|cff%s%s:|r", color or "e8c96e", currencyName or fallback or ("Currency " .. tostring(currencyID)))
 end
 
 MR:RegisterModule({
