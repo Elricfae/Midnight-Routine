@@ -115,7 +115,7 @@ end
 
 local function FindActiveQuestVariant(variants)
     for _, variant in ipairs(variants) do
-        if C_QuestLog.IsOnQuest(variant.quest) then
+        if IsQuestCurrentlyActive(variant.quest) then
             return variant
         end
     end
@@ -215,6 +215,7 @@ MR:RegisterModule({
         db[mod.key]["uatv_branch_name"] = activeUATVBranch and activeUATVBranch.name or nil
         db[mod.key]["uatv_branch_quest"] = activeUATVBranch and activeUATVBranch.quest or nil
         db[mod.key]["uatv_completed_branch_name"] = nil
+        db[mod.key]["unity_against_void"] = db[mod.key]["unity_against_void"] or 0
 
         if C_QuestLog.IsQuestFlaggedCompleted(93744) then
             db[mod.key]["unity_against_void"] = 1
@@ -225,6 +226,26 @@ MR:RegisterModule({
                     db[mod.key]["uatv_completed_branch_name"] = branch.name
                     break
                 end
+            end
+        end
+
+        for _, row in ipairs(mod.rows) do
+            if row.key == "unity_against_void" then
+                local completedBranch = db[mod.key]["uatv_completed_branch_name"]
+                local activeBranch = db[mod.key]["uatv_branch_name"]
+                local unityProgress = db[mod.key]["unity_against_void"] or 0
+
+                if completedBranch or unityProgress >= 1 then
+                    row.countText = completedBranch or (L["Weekly_SA_Count_Complete"] or "Done")
+                    row.countColor = { 0.4, 0.85, 0.4 }
+                elseif activeBranch then
+                    row.countText = activeBranch
+                    row.countColor = { 1, 0.9, 0.3 }
+                else
+                    row.countText = nil
+                    row.countColor = nil
+                end
+                break
             end
         end
 
@@ -311,7 +332,7 @@ MR:RegisterModule({
                 end
                 if not completedName then
                     for _, v in ipairs(variants) do
-                        if C_QuestLog.IsOnQuest(v.quest) then
+                        if IsQuestCurrentlyActive(v.quest) then
                             activeName = v.name; break
                         end
                     end
@@ -340,11 +361,11 @@ MR:RegisterModule({
 
             isVisible = function()
                 for _, qid in ipairs(UATV_BRANCH_QUEST_IDS) do
-                    if C_QuestLog.IsOnQuest(qid) or C_QuestLog.IsQuestFlaggedCompleted(qid) then
+                    if IsQuestCurrentlyActive(qid) or C_QuestLog.IsQuestFlaggedCompleted(qid) then
                         return true
                     end
                 end
-                return C_QuestLog.IsOnQuest(93744)
+                return IsQuestCurrentlyActive(93744)
                     or C_QuestLog.IsQuestFlaggedCompleted(93744)
                     or MR:GetProgress("s1_weekly", "unity_against_void") >= 1
             end,
@@ -353,7 +374,7 @@ MR:RegisterModule({
                 local s1db = MR.db.char.progress["s1_weekly"] or {}
                 local activeBranchInfo = FindActiveQuestVariant(UATV_BRANCHES)
                 local completedBranch = (MR:GetProgress("s1_weekly", "unity_against_void") >= 1 and s1db["uatv_completed_branch_name"]) or nil
-                local activeBranch = activeBranchInfo and activeBranchInfo.name or nil
+                local activeBranch = (activeBranchInfo and activeBranchInfo.name) or s1db["uatv_branch_name"]
 
                 tip:AddLine(" ")
                 if completedBranch or MR:GetProgress("s1_weekly", "unity_against_void") >= 1 then

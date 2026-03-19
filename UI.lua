@@ -2107,6 +2107,9 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW, parent, widget
     countFS:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
     countFS:SetPoint("RIGHT", rowFrame, "RIGHT", -4, 0)
     countFS:SetJustifyH("RIGHT")
+    if countFS.SetWordWrap then
+        countFS:SetWordWrap(false)
+    end
 
     if row.countText then
         countFS:SetText(row.countText)
@@ -2114,6 +2117,17 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW, parent, widget
             countFS:SetTextColor(row.countColor[1], row.countColor[2], row.countColor[3])
         else
             countFS:SetTextColor(0.8, 0.8, 0.8)
+        end
+
+        if not isCurrencyRow and not hasCoordText then
+            local reservedWidth = math.min(
+                math.max(math.floor((countFS:GetStringWidth() or 0) + 8), 64),
+                math.floor(math.max(rowFrame:GetWidth() * 0.5, 64))
+            )
+            countFS:SetWidth(reservedWidth)
+            lbl:ClearAllPoints()
+            lbl:SetPoint("LEFT", rowFrame, "LEFT", PADDING + 10, 0)
+            lbl:SetPoint("RIGHT", countFS, "LEFT", -8, 0)
         end
     elseif isCurrencyRow then
         local mdb    = MR.db and MR.db.char.progress[mod.key]

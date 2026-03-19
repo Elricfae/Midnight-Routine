@@ -474,6 +474,8 @@ local function BuildGatheringLocationsFrame(isRetry)
     track:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 1, 0)
     track:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 1, 0)
     track:SetWidth(5)
+    frame._scroll = scroll
+    frame._scrollTrack = track
     local trackBg = track:CreateTexture(nil, "BACKGROUND")
     trackBg:SetAllPoints()
     trackBg:SetColorTexture(0, 0, 0, 0.3)
@@ -589,8 +591,18 @@ local function BuildGatheringLocationsFrame(isRetry)
         minimized = gatheringMinimized
         if MR.db then MR.db.profile.gatheringMinimized = gatheringMinimized end
         UpdateMinBtn()
-        if gatheringMinimized then scroll:Hide(); if frame._dragger then frame._dragger:Hide() end; frame:SetHeight(TITLE_H)
-        else scroll:Show(); if frame._dragger then frame._dragger:Show() end; frame:SetHeight(MR.db and MR.db.profile.gatheringHeight or DEFAULT_H); frame.UpdateScrollBar() end
+        if gatheringMinimized then
+            if frame._scroll then frame._scroll:Hide() end
+            if frame._scrollTrack then frame._scrollTrack:Hide() end
+            if frame._dragger then frame._dragger:Hide() end
+            frame:SetHeight(TITLE_H)
+        else
+            if frame._scroll then frame._scroll:Show() end
+            if frame._scrollTrack then frame._scrollTrack:Show() end
+            if frame._dragger then frame._dragger:Show() end
+            frame:SetHeight(MR.db and MR.db.profile.gatheringHeight or DEFAULT_H)
+            frame.UpdateScrollBar()
+        end
     end)
 
     local yOff = 0
@@ -768,7 +780,11 @@ local function BuildGatheringLocationsFrame(isRetry)
         frame:SetHeight(math.max(MIN_H, math.min(MAX_H, dragStartH + (dragStartY - cy))))
     end)
 
-    if minimized then scroll:Hide(); dragger:Hide(); frame:SetHeight(TITLE_H)
+    if minimized then
+        if frame._scroll then frame._scroll:Hide() end
+        if frame._scrollTrack then frame._scrollTrack:Hide() end
+        dragger:Hide()
+        frame:SetHeight(TITLE_H)
     else
         local savedH = db.gatheringHeight or DEFAULT_H
         local naturalH = TITLE_H + 1 + yOff + 6

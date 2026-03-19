@@ -1,9 +1,7 @@
 local SCAN_THROTTLE       = 2
 local DELVE_T8_MIN_LEVEL  = 8
-local DELVERS_BOUNTY_ITEM = 233071
+local DELVERS_BOUNTY_ITEM = 265714
 
-local QUEST_CALL_TO_DELVES  = 84776
-local QUEST_MIDNIGHT_DELVES = 93909
 local QUEST_NULLAEUS        = 93525
 local L = LibStub("AceLocale-3.0"):GetLocale("MidnightRoutine")
 
@@ -56,7 +54,7 @@ end
 local function ScanExpansion(exp, mdb)
     if not (C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIInfo) then return end
 
-    local done    = 0
+    local active  = 0
     local total   = 0
     local entries = {}
 
@@ -66,21 +64,16 @@ local function ScanExpansion(exp, mdb)
             local poiInfo = C_AreaPoiInfo.GetAreaPOIInfo(zone.uiMapId, pair[1])
             if poiInfo then
                 total = total + 1
-                local questDone = pair[3] ~= 0 and C_QuestLog.IsQuestFlaggedCompleted(pair[3])
-                if questDone then
-                    done = done + 1
-                    entries[#entries + 1] = "|cff808080" .. zoneName .. ": " .. (poiInfo.name or "?") .. " \226\156\147|r"
-                else
-                    entries[#entries + 1] = zoneName .. ": " .. (poiInfo.name or "?")
-                end
+                active = active + 1
+                entries[#entries + 1] = zoneName .. ": " .. (poiInfo.name or "?")
             end
         end
     end
 
-    mdb["bountiful_live"]    = done
+    mdb["bountiful_live"]    = active
     mdb["bountiful_total"]   = total
     mdb["bountiful_entries"] = table.concat(entries, "\n")
-    mdb["bountiful_exp"]     = exp.label
+    mdb["bountiful_exp"]     = total > 0 and exp.label or nil
 end
 
 local bountifulRow
@@ -103,11 +96,20 @@ MR:RegisterModule({
         if exp then
             ScanExpansion(exp, mdb)
             bountifulRow.max = mdb["bountiful_total"] > 0 and mdb["bountiful_total"] or exp.total
+            if mdb["bountiful_total"] and mdb["bountiful_total"] > 0 then
+                bountifulRow.countText = string.format("%d active", mdb["bountiful_total"])
+                bountifulRow.countColor = { 1.0, 0.82, 0.30 }
+            else
+                bountifulRow.countText = nil
+                bountifulRow.countColor = nil
+            end
         else
             mdb["bountiful_live"]    = 0
             mdb["bountiful_total"]   = 0
             mdb["bountiful_entries"] = ""
             mdb["bountiful_exp"]     = nil
+            bountifulRow.countText = nil
+            bountifulRow.countColor = nil
         end
 
         if (now - lastScan) < SCAN_THROTTLE then return end
@@ -135,27 +137,15 @@ MR:RegisterModule({
         end
 
         local bountyCount = C_Item.GetItemCount and C_Item.GetItemCount(DELVERS_BOUNTY_ITEM) or 0
-        local bountyUsed  = (bountyCount == 0) and 1 or 0
-        if mdb["delve_bounty"] ~= bountyUsed then
-            mdb["delve_bounty"] = bountyUsed
+        if mdb["delve_bounty_count"] ~= bountyCount then
+            mdb["delve_bounty_count"] = bountyCount
+        end
+        if mdb["delve_bounty"] ~= 0 then
+            mdb["delve_bounty"] = 0
         end
     end,
 
     rows = {
-        {
-            key      = "delve_weekly",
-            label    = L["Delves_Call_Label"],
-            max      = 1,
-            note     = L["Delves_Call_Note"],
-            questIds = { QUEST_CALL_TO_DELVES },
-        },
-        {
-            key      = "delve_valeera",
-            label    = L["Delves_Midnight_Label"],
-            max      = 1,
-            note     = L["Delves_Midnight_Note"],
-            questIds = { QUEST_MIDNIGHT_DELVES },
-        },
         {
             key     = "delve_runs",
             label   = L["Delves_Runs_Label"],
@@ -187,11 +177,12 @@ MR:RegisterModule({
             key     = "bountiful_count",
             label   = L["Delves_Bountiful_Label"],
             max     = 4,
+            noMax   = true,
             note    = L["Delves_Bountiful_Note"],
             liveKey = "bountiful_live",
             isVisible = function()
                 local mdb = MR.db.char.progress["delves"]
-                return mdb and mdb["bountiful_exp"] ~= nil
+                return mdb and (mdb["bountiful_total"] or 0) > 0
             end,
             tooltipFunc = function(tip)
                 local mdb     = MR.db.char.progress["delves"]
