@@ -39,6 +39,16 @@ local countColor
 
 local GetFontSize = ns.GetFontSize
 
+local function RefreshFonts()
+    if ns.EnsureFonts then
+        FONT_HEADERS, FONT_ROWS = ns.EnsureFonts()
+        return
+    end
+
+    FONT_ROWS = ns.FONT_ROWS or FONT_ROWS or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+    FONT_HEADERS = ns.FONT_HEADERS or FONT_HEADERS or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+end
+
 local PEEK_ALPHA_IDLE   = 0.0    
 local PEEK_ALPHA_HOVER  = 1.0   
 local PEEK_FADE_IN      = 6.0    
@@ -920,6 +930,7 @@ SetWindowLayoutValue = function(key, value)
 end
 
 function MR:BuildUI()
+    RefreshFonts()
     if self.frame then self.frame:Show() return end
 
     RecalcLayout()

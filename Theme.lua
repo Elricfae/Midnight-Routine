@@ -1,7 +1,35 @@
 local _, ns = ...
 
-ns.FONT_HEADERS = STANDARD_TEXT_FONT
-ns.FONT_ROWS = STANDARD_TEXT_FONT
+local function ResolveDefaultFont()
+    if type(STANDARD_TEXT_FONT) == "string" and STANDARD_TEXT_FONT ~= "" then
+        return STANDARD_TEXT_FONT
+    end
+
+    if GameFontNormal and GameFontNormal.GetFont then
+        local font = GameFontNormal:GetFont()
+        if type(font) == "string" and font ~= "" then
+            return font
+        end
+    end
+
+    return "Fonts\\FRIZQT__.TTF"
+end
+
+function ns.EnsureFonts()
+    local defaultFont = ResolveDefaultFont()
+
+    if type(ns.FONT_HEADERS) ~= "string" or ns.FONT_HEADERS == "" then
+        ns.FONT_HEADERS = defaultFont
+    end
+
+    if type(ns.FONT_ROWS) ~= "string" or ns.FONT_ROWS == "" then
+        ns.FONT_ROWS = defaultFont
+    end
+
+    return ns.FONT_HEADERS, ns.FONT_ROWS
+end
+
+ns.EnsureFonts()
 ns.BACKDROP_FILE = "Interface\\Buttons\\WHITE8X8"
 
 ns.COLORS = {

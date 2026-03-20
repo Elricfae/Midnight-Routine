@@ -15,7 +15,18 @@ local pendingRares       = false
 local pendingGathering   = false
 local checkboxRefs   = {}
 
+local function RefreshFonts()
+    if ns.EnsureFonts then
+        FONT_HEADERS, FONT_ROWS = ns.EnsureFonts()
+        return
+    end
+
+    FONT_ROWS = ns.FONT_ROWS or FONT_ROWS or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+    FONT_HEADERS = ns.FONT_HEADERS or FONT_HEADERS or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+end
+
 local function BuildWelcomeScreen()
+    RefreshFonts()
     wipe(pendingEnabled)
     wipe(checkboxRefs)
 
