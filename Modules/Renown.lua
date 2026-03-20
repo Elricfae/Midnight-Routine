@@ -23,6 +23,7 @@ local GetOrderedFactions
 local GetFactionColor
 local SetFactionColor
 local ResetFactionColor
+local RefreshRenownFrame
 local RebuildRenownFrame
 local SaveFactionOrder
 local PopulateRenownConfig
@@ -81,6 +82,7 @@ local function BuildRenownFrame()
     local ROW_SPACE = compact and (BAR_H + 8) or (BAR_H + 34)
     local PAD       = 12
     local HEADER_H  = 24
+    local minimized = db.renownMinimized or false
     local hidden    = db.renownHiddenFactions or {}
     local visCount  = 0
     for _, fac in ipairs(GetOrderedFactions()) do
@@ -89,7 +91,7 @@ local function BuildRenownFrame()
     local totalH    = HEADER_H + PAD + (visCount * ROW_SPACE) + PAD
 
     local f = StyledFrame(UIParent, nil, "MEDIUM", 10)
-    f:SetSize(FRAME_W, totalH)
+    f:SetSize(FRAME_W, minimized and HEADER_H or totalH)
     f:SetBackdropColor(0.02, 0.03, 0.08, 0.97)
     f:SetBackdropBorderColor(0.55, 0.42, 0.08, 1)
 
@@ -148,6 +150,38 @@ local function BuildRenownFrame()
         gearTex:SetVertexColor(0.85, 0.65, 0.10, 1)
         GameTooltip:Hide()
     end)
+
+    local minBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
+    minBtn:SetSize(16, 16)
+    minBtn:SetPoint("RIGHT", gearBtn, "LEFT", -4, 0)
+    minBtn:SetBackdrop(MakeBackdrop())
+    minBtn:SetBackdropColor(0.06, 0.12, 0.22, 0.85)
+    minBtn:SetBackdropBorderColor(0.15, 0.35, 0.40, 0.9)
+    local minLbl = minBtn:CreateFontString(nil, "OVERLAY")
+    minLbl:SetFont(FONT_HEADERS, 12, "OUTLINE")
+    minLbl:SetPoint("CENTER", minBtn, "CENTER", 0, 1)
+    minLbl:SetTextColor(0.25, 0.80, 0.68)
+    local function UpdateMinBtn()
+        minLbl:SetText((MR.db and MR.db.profile.renownMinimized) and "+" or "-")
+    end
+    UpdateMinBtn()
+    minBtn:SetScript("OnEnter", function()
+        minBtn:SetBackdropColor(0.06, 0.22, 0.28, 1)
+        minBtn:SetBackdropBorderColor(0.20, 0.80, 0.65, 1)
+        minLbl:SetTextColor(1, 1, 1)
+        GameTooltip:SetOwner(minBtn, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(L["UI_Collapse"], 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    minBtn:SetScript("OnLeave", function()
+        minBtn:SetBackdropColor(0.06, 0.12, 0.22, 0.85)
+        minBtn:SetBackdropBorderColor(0.15, 0.35, 0.40, 0.9)
+        minLbl:SetTextColor(0.25, 0.80, 0.68)
+        GameTooltip:Hide()
+    end)
+    titleTxt:SetPoint("RIGHT", minBtn, "LEFT", -6, 0)
+    titleTxt:SetJustifyH("LEFT")
+    titleTxt:SetWordWrap(false)
 
     f.factionRows = {}
 
@@ -280,11 +314,60 @@ local function BuildRenownFrame()
         end)
     end
 
+    local function ApplyMinimized(isMin)
+        if MR.db then MR.db.profile.renownMinimized = isMin end
+        UpdateMinBtn()
+
+        for _, row in pairs(f.factionRows) do
+            if row.rowFrame then
+                if isMin then
+                    row.rowFrame:Hide()
+                else
+                    row.rowFrame:Show()
+                end
+            end
+        end
+
+        if f.divider then
+            if isMin then
+                f.divider:Hide()
+            else
+                f.divider:Show()
+            end
+        end
+
+        if isMin then
+            local left = f:GetLeft()
+            local top  = f:GetTop()
+            if left and top then
+                f:ClearAllPoints()
+                f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+                if MR.db then
+                    MR:SetWindowLayoutValue("renownPos", { point = "TOPLEFT", relPoint = "BOTTOMLEFT", x = left, y = top })
+                end
+            end
+            f:SetHeight(HEADER_H)
+        else
+            f:SetHeight(totalH)
+            RefreshRenownFrame()
+        end
+    end
+    f.ApplyMinimized = ApplyMinimized
+
+    minBtn:SetScript("OnClick", function()
+        local isMin = not (MR.db and MR.db.profile.renownMinimized)
+        ApplyMinimized(isMin)
+    end)
+
+    if minimized then
+        ApplyMinimized(true)
+    end
+
     f:Hide()
     return f
 end
 
-local function RefreshRenownFrame()
+RefreshRenownFrame = function()
     if not renownFrame or not renownFrame:IsShown() then return end
     local db         = MR.db and MR.db.profile or {}
     local showRep    = db.renownShowRep ~= false

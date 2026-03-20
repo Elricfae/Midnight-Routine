@@ -49,6 +49,7 @@ local DEFAULTS = {
         renownColors         = {},
         renownOrder          = {},
         renownCompact        = false,
+        renownMinimized      = false,
         renownScale          = 1.0,
         renownShowLevel      = true,
         renownFontSize       = 9,
