@@ -1000,6 +1000,7 @@ function MR:BuildUI()
         local pt, _, rp, x, y = f:GetPoint()
         SetWindowLayoutValue("position", { point = pt, relPoint = rp, x = x, y = y })
     end)
+    if MR.ApplyPanelHeaderAutoHide then MR:ApplyPanelHeaderAutoHide(f, titleBar) end
 
     local titleAccent = titleBar:CreateTexture(nil, "ARTWORK")
     MR._titleAccent = titleAccent
@@ -2508,6 +2509,23 @@ function MR:PopulateConfigFrame(f)
         Checkbox(L["Config_PeekOnHover"],
             function() return MR.db.profile.peekOnHover end,
             function(v) MR:ApplyPeekOnHover(v) end)
+        Checkbox("Auto-Hide Panel Headers",
+            function() return MR.db.profile.autoHidePanelHeaders end,
+            function(v)
+                MR.db.profile.autoHidePanelHeaders = v
+                if MR.frame and MR.frame.UpdatePanelHeaderVisibility then
+                    MR.frame:UpdatePanelHeaderVisibility(MR.frame:IsMouseOver())
+                end
+                if MR.renownFrame and MR.renownFrame.UpdatePanelHeaderVisibility then
+                    MR.renownFrame:UpdatePanelHeaderVisibility(MR.renownFrame:IsMouseOver())
+                end
+                if MR.raresFrame and MR.raresFrame.UpdatePanelHeaderVisibility then
+                    MR.raresFrame:UpdatePanelHeaderVisibility(MR.raresFrame:IsMouseOver())
+                end
+                if MR.gatheringLocationsFrame and MR.gatheringLocationsFrame.UpdatePanelHeaderVisibility then
+                    MR.gatheringLocationsFrame:UpdatePanelHeaderVisibility(MR.gatheringLocationsFrame:IsMouseOver())
+                end
+            end)
     elseif activePage == "layout" then
         SectionLabel(L["Config_LayoutMode"] or "Layout Mode")
 

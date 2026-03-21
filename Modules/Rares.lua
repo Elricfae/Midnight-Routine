@@ -321,6 +321,7 @@ BuildRaresFrame = function()
         local pt, _, rp, x, y = f:GetPoint()
         if MR.db then MR:SetWindowLayoutValue("raresPos", { point = pt, relPoint = rp, x = x, y = y }) end
     end)
+    if MR.ApplyPanelHeaderAutoHide then MR:ApplyPanelHeaderAutoHide(f, titleBar) end
 
     local titleIcon = titleBar:CreateTexture(nil, "ARTWORK")
     titleIcon:SetSize(14, 14)
@@ -558,7 +559,16 @@ BuildRaresFrame = function()
         f:SetScript("OnUpdate", function(self, dt)
             self.shimmerElapsed = self.shimmerElapsed + dt
             local pulse = 0.06 + 0.04 * math.sin(self.shimmerElapsed * 2)
+            if self.UpdatePanelHeaderVisibility then
+                self:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(self))
+            end
             for _, tex in ipairs(self.shimmerTextures) do tex:SetAlpha(pulse) end
+        end)
+    else
+        f:SetScript("OnUpdate", function(self)
+            if self.UpdatePanelHeaderVisibility then
+                self:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(self))
+            end
         end)
     end
 

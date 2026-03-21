@@ -434,6 +434,7 @@ local function BuildGatheringLocationsFrame(isRetry)
         local point, _, relPoint, x, y = frame:GetPoint()
         if MR.db then MR:SetWindowLayoutValue("gatheringLocPos", { point = point, relPoint = relPoint, x = x, y = y }) end
     end)
+    if MR.ApplyPanelHeaderAutoHide then MR:ApplyPanelHeaderAutoHide(frame, titleBar) end
 
     local titleIcon = titleBar:CreateTexture(nil, "ARTWORK")
     titleIcon:SetSize(14, 14)

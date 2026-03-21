@@ -212,6 +212,7 @@ local function BuildRenownFrame()
         local pt, _, rp, x, y = f:GetPoint()
         if MR.db then MR:SetWindowLayoutValue("renownPos", { point = pt, relPoint = rp, x = x, y = y }) end
     end)
+    if MR.ApplyPanelHeaderAutoHide then MR:ApplyPanelHeaderAutoHide(f, titleBar) end
 
     local titleIcon = titleBar:CreateTexture(nil, "ARTWORK")
     titleIcon:SetSize(20, 20)
@@ -422,8 +423,17 @@ local function BuildRenownFrame()
         f:SetScript("OnUpdate", function(self, dt)
             self.shimmerElapsed = self.shimmerElapsed + dt
             local pulse = 0.06 + 0.04 * math.sin(self.shimmerElapsed * 2)
+            if self.UpdatePanelHeaderVisibility then
+                self:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(self))
+            end
             for _, row in pairs(self.factionRows) do
                 row.shimmer:SetAlpha(pulse)
+            end
+        end)
+    else
+        f:SetScript("OnUpdate", function(self)
+            if self.UpdatePanelHeaderVisibility then
+                self:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(self))
             end
         end)
     end

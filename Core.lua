@@ -15,6 +15,7 @@ local DEFAULTS = {
         frameAlpha      = 1.0,
         hideFramesInInstances = false,
         transparentMode = false,
+        autoHidePanelHeaders = false,
         width           = 260,
         height          = 400,
         fontSize        = 11,
@@ -658,6 +659,57 @@ function MR:ResetHeaderColor(modKey)
         self.db.profile.headerColors[modKey] = nil
     end
     self:RefreshUI()
+end
+
+function MR:IsCursorWithinBounds(target)
+    if not target or not target.IsShown or not target:IsShown() then
+        return false
+    end
+
+    local left = target:GetLeft()
+    local right = target:GetRight()
+    local top = target:GetTop()
+    local bottom = target:GetBottom()
+    if not left or not right or not top or not bottom then
+        return false
+    end
+
+    local cursorX, cursorY = GetCursorPosition()
+    local uiScale = UIParent and UIParent:GetEffectiveScale() or 1
+    cursorX = cursorX / uiScale
+    cursorY = cursorY / uiScale
+
+    return cursorX >= left and cursorX <= right and cursorY >= bottom and cursorY <= top
+end
+
+function MR:ApplyPanelHeaderAutoHide(frame, titleBar)
+    if not frame or not titleBar then return end
+
+    if not frame._mrPanelHeaderAutoHideHooked then
+        frame:EnableMouse(true)
+        frame:HookScript("OnShow", function(self)
+            if self.UpdatePanelHeaderVisibility then
+                self:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(self))
+            end
+        end)
+        frame:HookScript("OnUpdate", function(self)
+            if not self.UpdatePanelHeaderVisibility then return end
+            local isHovering = MR:IsCursorWithinBounds(self)
+            if isHovering ~= self._mrHeaderHovering then
+                self._mrHeaderHovering = isHovering
+                self:UpdatePanelHeaderVisibility(isHovering)
+            end
+        end)
+        frame._mrPanelHeaderAutoHideHooked = true
+    end
+
+    frame.UpdatePanelHeaderVisibility = function(self, isHovering)
+        local hideHeaders = MR.db and MR.db.profile and MR.db.profile.autoHidePanelHeaders
+        titleBar:SetAlpha((hideHeaders and not isHovering) and 0 or 1)
+        self._mrHeaderHovering = isHovering
+    end
+
+    frame:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(frame))
 end
 
 function MR:GetRowColor(modKey, rowKey)

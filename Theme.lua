@@ -206,8 +206,9 @@ end
 
 function ns.RestoreFramePos(frame, key, defaultX, defaultY)
     local addon = ns.MR
-    if addon and addon.db and addon.db.profile[key] then
-        local pos = addon.db.profile[key]
+    local pos = addon and addon.GetWindowLayoutValue and addon:GetWindowLayoutValue(key)
+        or (addon and addon.db and addon.db.profile and addon.db.profile[key])
+    if pos and pos.point then
         frame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x, pos.y)
         return
     end
