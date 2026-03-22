@@ -78,6 +78,7 @@ local DEFAULTS = {
     char = {
         progress = {},
         professions = {},
+        professionConcentration = {},
         lastWeek = 0,
         lastSyncAt = 0,
         manualOverrides = {},
@@ -147,6 +148,47 @@ local function CleanAccountLabel(text)
     end
 
     return text:gsub("|c%x%x%x%x%x%x%x%x(.-)%|r", "%1"):gsub("|[cCrR]%x*", "")
+end
+
+local function GetProfessionLabelBySkillLine(skillLineID)
+    if MR and MR.modules then
+        for _, mod in ipairs(MR.modules) do
+            if mod.profSkillLine == skillLineID and mod.label then
+                return CleanAccountLabel(mod.label)
+            end
+        end
+    end
+
+    return tostring(skillLineID or "")
+end
+
+local function EstimateCurrencyQuantity(currencyInfo)
+    if type(currencyInfo) ~= "table" then
+        return 0, 0
+    end
+
+    local quantity = tonumber(currencyInfo.quantity) or 0
+    local maxQuantity = tonumber(currencyInfo.maxQuantity) or 0
+    local lastUpdated = tonumber(currencyInfo.lastUpdated) or 0
+    local dailyGain = 250
+
+    if maxQuantity <= 0 then
+        return quantity, maxQuantity
+    end
+
+    if lastUpdated <= 0 or not (MR and MR.GetLastDailyTimestamp) then
+        return math.min(quantity, maxQuantity), maxQuantity
+    end
+
+    local lastDailyReset = MR:GetLastDailyTimestamp()
+    if not lastDailyReset or lastUpdated >= lastDailyReset then
+        return math.min(quantity, maxQuantity), maxQuantity
+    end
+
+    local resetsMissed = math.floor((lastDailyReset - lastUpdated - 1) / DAY_SECONDS) + 1
+    local estimated = quantity + (math.max(0, resetsMissed) * dailyGain)
+
+    return math.min(estimated, maxQuantity), maxQuantity
 end
 
 local function HasAnyTableValue(t)
@@ -240,6 +282,7 @@ function MR:GetWarbandWeeklyData()
             local lastSyncAt = charData.lastSyncAt or 0
             local stale = resetAt > 0 and lastSyncAt > 0 and lastSyncAt < resetAt
             local hidden = hiddenChars[charKey] == true
+            local savedProfessions = type(charData.professions) == "table" and charData.professions or nil
             local snapshot = {
                 key = charKey,
                 name = name,
@@ -262,7 +305,6 @@ function MR:GetWarbandWeeklyData()
                     local moduleEnabled = not (moduleSettings and moduleSettings.enabled == false)
                     local moduleVisible = moduleEnabled and (not mod.isVisible or mod:isVisible())
                     local modProgress = charData.progress[mod.key] or {}
-                    local savedProfessions = type(charData.professions) == "table" and charData.professions or nil
                     local knowsProfession = (not mod.profSkillLine)
                         or (snapshot.isCurrent and self.playerProfessions and self.playerProfessions[mod.profSkillLine])
                         or (savedProfessions and savedProfessions[mod.profSkillLine])
@@ -327,7 +369,34 @@ function MR:GetWarbandWeeklyData()
                 end
             end
 
-            if snapshot.totalRows > 0 and ((showHidden and hidden) or ((not showHidden) and (not hidden))) then
+            local savedConcentration = type(charData.professionConcentration) == "table" and charData.professionConcentration or nil
+            if savedConcentration then
+                snapshot.concentration = {}
+                for skillLineID, currencyInfo in pairs(savedConcentration) do
+                    if currencyInfo and (savedProfessions == nil or savedProfessions[skillLineID]) then
+                        local estimated, maxQuantity = EstimateCurrencyQuantity(currencyInfo)
+                        table.insert(snapshot.concentration, {
+                            skillLineID = skillLineID,
+                            label = GetProfessionLabelBySkillLine(skillLineID),
+                            currencyID = currencyInfo.currencyID,
+                            quantity = tonumber(currencyInfo.quantity) or 0,
+                            estimatedQuantity = estimated,
+                            maxQuantity = maxQuantity,
+                            lastUpdated = tonumber(currencyInfo.lastUpdated) or 0,
+                        })
+                    end
+                end
+
+                table.sort(snapshot.concentration, function(a, b)
+                    if a.skillLineID ~= b.skillLineID then
+                        return a.skillLineID < b.skillLineID
+                    end
+                    return (a.label or "") < (b.label or "")
+                end)
+            end
+
+            local hasConcentration = type(snapshot.concentration) == "table" and #snapshot.concentration > 0
+            if (snapshot.totalRows > 0 or hasConcentration) and ((showHidden and hidden) or ((not showHidden) and (not hidden))) then
                 table.insert(results, snapshot)
             end
         end
@@ -492,7 +561,7 @@ end
 
 function MR:GetOrderedModules()
     if self._orderedModulesCache then return self._orderedModulesCache end
-    local saved = self.db.char.moduleOrder
+    local saved = self:GetActiveModuleOrderStorage()
     if not saved or #saved == 0 then
         self._orderedModulesCache = self.modules
         return self.modules
@@ -509,8 +578,40 @@ function MR:GetOrderedModules()
     return result
 end
 
+function MR:GetActiveModuleStorage()
+    if not (self and self.db) then
+        return nil
+    end
+
+    if self:IsCharacterWindowLayoutEnabled() then
+        self.db.char.modules = self.db.char.modules or {}
+        return self.db.char.modules
+    end
+
+    self.db.profile.modules = self.db.profile.modules or {}
+    return self.db.profile.modules
+end
+
+function MR:GetActiveModuleOrderStorage()
+    if not (self and self.db) then
+        return nil
+    end
+
+    if self:IsCharacterWindowLayoutEnabled() then
+        self.db.char.moduleOrder = self.db.char.moduleOrder or {}
+        return self.db.char.moduleOrder
+    end
+
+    self.db.profile.moduleOrder = self.db.profile.moduleOrder or {}
+    return self.db.profile.moduleOrder
+end
+
 function MR:SetModuleOrder(orderedKeys)
-    self.db.char.moduleOrder  = orderedKeys
+    if self:IsCharacterWindowLayoutEnabled() then
+        self.db.char.moduleOrder = orderedKeys
+    else
+        self.db.profile.moduleOrder = orderedKeys
+    end
     self._orderedModulesCache = nil
 end
 
@@ -519,12 +620,14 @@ function MR:IsModuleEnabled(key)
     if mod and mod.profSkillLine and not self.playerProfessions[mod.profSkillLine] then
         return false
     end
-    local s = self.db.char.modules[key]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[key]
     return not (s and s.enabled == false)
 end
 
 function MR:IsModuleOpen(key)
-    local s = self.db.char.modules[key]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[key]
     if s == nil then
         local mod = self.moduleByKey[key]
         return not mod or mod.defaultOpen ~= false
@@ -533,28 +636,33 @@ function MR:IsModuleOpen(key)
 end
 
 function MR:IsModuleDetached(key)
-    local s = self.db.char.modules[key]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[key]
     return s and s.detached == true or false
 end
 
 function MR:SetModuleOpen(key, open)
-    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
-    self.db.char.modules[key].open = open
+    local storage = self:GetActiveModuleStorage()
+    if not storage[key] then storage[key] = {} end
+    storage[key].open = open
 end
 
 function MR:SetModuleDetached(key, detached)
-    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
-    self.db.char.modules[key].detached = detached and true or false
+    local storage = self:GetActiveModuleStorage()
+    if not storage[key] then storage[key] = {} end
+    storage[key].detached = detached and true or false
 end
 
 function MR:GetDetachedModulePosition(key)
-    local s = self.db.char.modules[key]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[key]
     return s and s.detachedPos or nil
 end
 
 function MR:SetDetachedModulePosition(key, point, relPoint, x, y)
-    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
-    self.db.char.modules[key].detachedPos = {
+    local storage = self:GetActiveModuleStorage()
+    if not storage[key] then storage[key] = {} end
+    storage[key].detachedPos = {
         point = point,
         relPoint = relPoint,
         x = x,
@@ -563,48 +671,55 @@ function MR:SetDetachedModulePosition(key, point, relPoint, x, y)
 end
 
 function MR:GetDetachedModuleSize(key)
-    local s = self.db.char.modules[key]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[key]
     return s and s.detachedSize or nil
 end
 
 function MR:SetDetachedModuleSize(key, width, height)
-    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
-    self.db.char.modules[key].detachedSize = {
+    local storage = self:GetActiveModuleStorage()
+    if not storage[key] then storage[key] = {} end
+    storage[key].detachedSize = {
         width = width,
         height = height,
     }
 end
 
 function MR:SetModuleEnabled(key, enabled)
-    if not self.db.char.modules[key] then self.db.char.modules[key] = {} end
-    self.db.char.modules[key].enabled = enabled
+    local storage = self:GetActiveModuleStorage()
+    if not storage[key] then storage[key] = {} end
+    storage[key].enabled = enabled
     self:RefreshUI()
 end
 
 function MR:IsModuleHideComplete(modKey)
-    local s = self.db.char.modules[modKey]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[modKey]
     if s and s.hideComplete ~= nil then return s.hideComplete end
     return self.db.char.hideComplete
 end
 
 function MR:SetModuleHideComplete(modKey, value)
-    if not self.db.char.modules[modKey] then self.db.char.modules[modKey] = {} end
-    self.db.char.modules[modKey].hideComplete = value
+    local storage = self:GetActiveModuleStorage()
+    if not storage[modKey] then storage[modKey] = {} end
+    storage[modKey].hideComplete = value
     self:RefreshUI()
 end
 
 function MR:IsRowEnabled(modKey, rowKey)
-    local s = self.db.char.modules[modKey]
+    local storage = self:GetActiveModuleStorage()
+    local s = storage and storage[modKey]
     if not s or not s.hiddenRows then return true end
     return s.hiddenRows[rowKey] ~= false
 end
 
 function MR:SetRowEnabled(modKey, rowKey, enabled)
-    if not self.db.char.modules[modKey] then self.db.char.modules[modKey] = {} end
-    if not self.db.char.modules[modKey].hiddenRows then
-        self.db.char.modules[modKey].hiddenRows = {}
+    local storage = self:GetActiveModuleStorage()
+    if not storage[modKey] then storage[modKey] = {} end
+    if not storage[modKey].hiddenRows then
+        storage[modKey].hiddenRows = {}
     end
-    self.db.char.modules[modKey].hiddenRows[rowKey] = enabled and true or false
+    storage[modKey].hiddenRows[rowKey] = enabled and true or false
 end
 
 function MR:IsCharacterWindowLayoutEnabled()
@@ -741,6 +856,17 @@ local PARENT_TO_MIDNIGHT = {
     [773]=2913, [755]=2914, [165]=2915, [186]=2916, [393]=2917, [197]=2918,
 }
 
+local PROFESSION_CONCENTRATION_CURRENCIES = {
+    [2906] = 3161,
+    [2907] = 3162,
+    [2909] = 3163,
+    [2910] = 3164,
+    [2913] = 3165,
+    [2914] = 3166,
+    [2915] = 3167,
+    [2918] = 3168,
+}
+
 MR.playerProfessions = MR.playerProfessions or {}
 
 local function CopyProfessionMap(source)
@@ -756,6 +882,37 @@ local function CopyProfessionMap(source)
     end
 
     return copy
+end
+
+local function ConcentrationDataEqual(a, b)
+    if a == b then
+        return true
+    end
+    if type(a) ~= "table" or type(b) ~= "table" then
+        return false
+    end
+
+    for skillLineID, infoA in pairs(a) do
+        local infoB = b[skillLineID]
+        if type(infoA) ~= "table" or type(infoB) ~= "table" then
+            return false
+        end
+        if (infoA.currencyID or 0) ~= (infoB.currencyID or 0)
+            or (infoA.quantity or 0) ~= (infoB.quantity or 0)
+            or (infoA.maxQuantity or 0) ~= (infoB.maxQuantity or 0)
+            or (infoA.rechargingCycleDurationMS or 0) ~= (infoB.rechargingCycleDurationMS or 0)
+            or (infoA.rechargingAmountPerCycle or 0) ~= (infoB.rechargingAmountPerCycle or 0) then
+            return false
+        end
+    end
+
+    for skillLineID in pairs(b) do
+        if a[skillLineID] == nil then
+            return false
+        end
+    end
+
+    return true
 end
 
 function MR:RefreshPlayerProfessions()
@@ -789,6 +946,36 @@ function MR:RefreshPlayerProfessions()
     if self.db and self.db.char then
         self.db.char.professions = CopyProfessionMap(self.playerProfessions)
     end
+end
+
+function MR:RefreshProfessionConcentration()
+    if not (self and self.db and self.db.char) then
+        return false
+    end
+
+    local previous = self.db.char.professionConcentration
+    local concentration = {}
+    for skillLineID, currencyID in pairs(PROFESSION_CONCENTRATION_CURRENCIES) do
+        if self.playerProfessions and self.playerProfessions[skillLineID] then
+            local info = C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(currencyID)
+            if info then
+                concentration[skillLineID] = {
+                    currencyID = currencyID,
+                    quantity = info.quantity or 0,
+                    maxQuantity = info.maxQuantity or 0,
+                    rechargingCycleDurationMS = info.rechargingCycleDurationMS or 0,
+                    rechargingAmountPerCycle = info.rechargingAmountPerCycle or 0,
+                    name = info.name,
+                    iconFileID = info.iconFileID,
+                    quality = info.quality or 0,
+                    lastUpdated = GetServerTime(),
+                }
+            end
+        end
+    end
+
+    self.db.char.professionConcentration = concentration
+    return not ConcentrationDataEqual(previous, concentration)
 end
 
 local spellIndex = {}
@@ -826,9 +1013,10 @@ function MR:Scan()
     end
 
     self.db.char.lastSyncAt = GetServerTime()
+    local concentrationChanged = self:RefreshProfessionConcentration()
 
     local progress = self.db.char.progress
-    local dirty    = false
+    local dirty    = concentrationChanged and true or false
 
     for _, mod in ipairs(self.modules) do
         for _, row in ipairs(mod.rows) do
@@ -1319,6 +1507,7 @@ function MR:OnEnteringWorld()
     end
     self.db.char.lastSyncAt = GetServerTime()
     self:RefreshPlayerProfessions()
+    self:RefreshProfessionConcentration()
     self:BuildSpellIndex()
     local temporarilyHidden = self._toggleRestoreState ~= nil
 
@@ -1378,6 +1567,7 @@ end
 
 function MR:OnProfessionChange()
     self:RefreshPlayerProfessions()
+    self:RefreshProfessionConcentration()
     self:RefreshUI()
     if self.RefreshGatheringLocationsFrame then
         self:RefreshGatheringLocationsFrame()

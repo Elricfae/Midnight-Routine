@@ -250,6 +250,37 @@ local function WBClassColor(entry)
     return WBStatusColor(entry)
 end
 
+local function WBConcentrationColor(entry)
+    if not entry then
+        return 0.55, 0.72, 0.95
+    end
+
+    local current = tonumber(entry.estimatedQuantity) or tonumber(entry.quantity) or 0
+    local maxQuantity = tonumber(entry.maxQuantity) or 0
+    if maxQuantity > 0 and current >= maxQuantity then
+        return 0.20, 0.95, 0.60
+    end
+    if current <= 0 then
+        return 0.95, 0.35, 0.35
+    end
+
+    return 1.00, 0.76, 0.28
+end
+
+local function WBConcentrationText(entry)
+    if not entry then
+        return "-"
+    end
+
+    local current = math.floor((tonumber(entry.estimatedQuantity) or tonumber(entry.quantity) or 0) + 0.0001)
+    local maxQuantity = tonumber(entry.maxQuantity) or 0
+    if maxQuantity > 0 then
+        return string.format("%d / %d", current, maxQuantity)
+    end
+
+    return tostring(current)
+end
+
 local function WBCreateScrollArea(parent, topLeftAnchor, bottomRightAnchor)
     local scroll = CreateFrame("ScrollFrame", nil, parent)
     scroll:SetPoint(topLeftAnchor[1], topLeftAnchor[2], topLeftAnchor[3], topLeftAnchor[4], topLeftAnchor[5])
@@ -556,7 +587,12 @@ function MR:RefreshWarbandBoard()
     frame.heroName:SetText(selected.name)
     local syncAt = selected.lastSyncAt and selected.lastSyncAt > 0 and selected.lastSyncAt or selected.lastResetAt
     frame.heroMeta:SetText(string.format(L["AltBoard_LastSynced"] or "%s  |  Last synced: %s", selected.realm ~= "" and selected.realm or (L["AltBoard_UnknownRealm"] or "Unknown Realm"), WBFormatTimestamp(syncAt)))
-    frame.heroStatus:SetText("")
+    if selected.concentration and #selected.concentration > 0 then
+        frame.heroStatus:SetText(string.format("Concentration tracked for %d profession%s", #selected.concentration, #selected.concentration == 1 and "" or "s"))
+        frame.heroStatus:SetTextColor(0.88, 0.76, 0.42)
+    else
+        frame.heroStatus:SetText("")
+    end
 
     local detailWidth = math.max((frame.detailScroll and frame.detailScroll:GetWidth() or 540) - 8, 320)
     frame.detailContent:SetWidth(detailWidth)
@@ -575,6 +611,72 @@ function MR:RefreshWarbandBoard()
     end)
 
     local yOff = 0
+    if selected.concentration and #selected.concentration > 0 then
+        local card = CreateFrame("Frame", nil, frame.detailContent, "BackdropTemplate")
+        card:SetPoint("TOPLEFT", frame.detailContent, "TOPLEFT", 0, -yOff)
+        card:SetSize(1, 1)
+        card:SetWidth(detailWidth)
+        card:SetBackdrop(MakeBackdrop())
+        card:SetBackdropColor(0.03, 0.06, 0.11, 0.96)
+        card:SetBackdropBorderColor(0.10, 0.18, 0.25, 1)
+
+        local topAccent = card:CreateTexture(nil, "ARTWORK")
+        topAccent:SetPoint("TOPLEFT")
+        topAccent:SetPoint("TOPRIGHT")
+        topAccent:SetHeight(2)
+        topAccent:SetColorTexture(0.92, 0.72, 0.28, 1)
+
+        local title = card:CreateFontString(nil, "OVERLAY")
+        title:SetFont(FONT_HEADERS, math.max(10, GetFontSize() + 1), "OUTLINE")
+        title:SetPoint("TOPLEFT", card, "TOPLEFT", 12, -10)
+        title:SetText("Profession Concentration")
+        title:SetTextColor(0.92, 0.78, 0.38)
+
+        local sub = card:CreateFontString(nil, "OVERLAY")
+        sub:SetFont(FONT_ROWS, math.max(8, GetFontSize() - 1), "OUTLINE")
+        sub:SetPoint("RIGHT", card, "RIGHT", -12, 0)
+        sub:SetPoint("TOP", card, "TOP", 0, -10)
+        sub:SetText(string.format("%d tracked", #selected.concentration))
+        sub:SetTextColor(0.72, 0.79, 0.86)
+
+        local moduleY = 34
+        for _, concentrationEntry in ipairs(selected.concentration) do
+            local row = CreateFrame("Frame", nil, card)
+            row:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -moduleY)
+            row:SetPoint("TOPRIGHT", card, "TOPRIGHT", -10, -moduleY)
+            row:SetHeight(22)
+
+            local rr, rg, rb = WBConcentrationColor(concentrationEntry)
+
+            local dot = row:CreateTexture(nil, "ARTWORK")
+            dot:SetSize(7, 7)
+            dot:SetPoint("LEFT", row, "LEFT", 2, 0)
+            dot:SetColorTexture(rr, rg, rb, 1)
+
+            local label = row:CreateFontString(nil, "OVERLAY")
+            label:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
+            label:SetPoint("LEFT", row, "LEFT", 16, 0)
+            label:SetPoint("RIGHT", row, "RIGHT", -120, 0)
+            label:SetJustifyH("LEFT")
+            label:SetText(concentrationEntry.label)
+            label:SetTextColor(0.90, 0.93, 0.97)
+
+            local value = row:CreateFontString(nil, "OVERLAY")
+            value:SetFont(FONT_ROWS, GetFontSize(), "OUTLINE")
+            value:SetPoint("RIGHT", row, "RIGHT", -2, 0)
+            value:SetJustifyH("RIGHT")
+            value:SetText(WBConcentrationText(concentrationEntry))
+            value:SetTextColor(rr, rg, rb)
+
+            table.insert(frame.detailWidgets, row)
+            moduleY = moduleY + 23
+        end
+
+        card:SetHeight(moduleY + 10)
+        table.insert(frame.detailWidgets, card)
+        yOff = yOff + moduleY + 18
+    end
+
     for _, moduleEntry in ipairs(selected.modules) do
         local card = CreateFrame("Frame", nil, frame.detailContent, "BackdropTemplate")
         card:SetPoint("TOPLEFT", frame.detailContent, "TOPLEFT", 0, -yOff)
@@ -2481,10 +2583,11 @@ function MR:PopulateConfigFrame(f)
         Checkbox(L["Config_HideWhenCompleted"],
             function() return MR.db.char.hideComplete end,
             function(v)
+                local moduleStorage = MR:GetActiveModuleStorage()
                 MR.db.char.hideComplete = v
                 for _, mod in ipairs(MR.modules) do
-                    if MR.db.char.modules[mod.key] then
-                        MR.db.char.modules[mod.key].hideComplete = nil
+                    if moduleStorage and moduleStorage[mod.key] then
+                        moduleStorage[mod.key].hideComplete = nil
                     end
                 end
                 MR:RefreshUI()
@@ -3187,7 +3290,11 @@ function MR:PopulateConfigFrame(f)
             MR:PopulateConfigFrame(f)
         end)
         Btn(L["Config_ResetOrder"], function()
-            MR.db.char.moduleOrder = {}
+            if MR:IsCharacterWindowLayoutEnabled() then
+                MR.db.char.moduleOrder = {}
+            else
+                MR.db.profile.moduleOrder = {}
+            end
             MR._orderedModulesCache = nil
             MR:RefreshUI()
             MR:PopulateConfigFrame(f)
