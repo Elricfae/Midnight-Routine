@@ -119,7 +119,7 @@ MR:RegisterModule({
             ScanExpansion(exp, mdb)
             bountifulRow.max = mdb["bountiful_total"] > 0 and mdb["bountiful_total"] or exp.total
             if mdb["bountiful_total"] and mdb["bountiful_total"] > 0 then
-                bountifulRow.countText = string.format("%d active", mdb["bountiful_total"])
+                bountifulRow.countText = string.format(L["Count_Active"] or "%d active", mdb["bountiful_total"])
                 bountifulRow.countColor = { 1.0, 0.82, 0.30 }
             else
                 bountifulRow.countText = nil
@@ -181,10 +181,10 @@ MR:RegisterModule({
                 bountyRow.countText = L["Done"] or "Done"
                 bountyRow.countColor = { 0.40, 0.85, 0.40 }
             elseif bountyCount > 0 then
-                bountyRow.countText = string.format("%d in bags", bountyCount)
+                bountyRow.countText = string.format(L["Count_InBags"] or "%d in bags", bountyCount)
                 bountyRow.countColor = { 1.00, 0.82, 0.30 }
             elseif bountyLooted > 0 then
-                bountyRow.countText = "Looted"
+                bountyRow.countText = L["Looted"] or "Looted"
                 bountyRow.countColor = { 1.00, 0.82, 0.30 }
             else
                 bountyRow.countText = nil

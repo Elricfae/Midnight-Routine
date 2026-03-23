@@ -51,6 +51,7 @@ L["Config_HideMinimap"] = "隐藏小地图图标"
 L["Config_HideInInstances"] = "在副本中隐藏框体"
 L["Config_CharacterWindowLayout"] = "每个角色窗口布局"
 L["Config_PeekOnHover"]    = "自动隐藏：鼠标悬停时显示"
+L["Config_AutoHidePanelHeaders"] = "Auto-Hide Panel Headers"
 L["Config_TabWindows"] = "窗口"
 L["Config_TabLayout"] = "布局"
 L["Config_TabModules"] = "模块"
@@ -136,6 +137,9 @@ L["Delves_Bountiful_Label"] = "|cffc8956c丰裕地下堡完成：|r"
 L["Delves_Bountiful_Note"] = "今日已完成的丰裕地下堡，基于当前激活的丰裕地下堡。"
 L["Delves_Bountiful_Today"] = "%s — 今日丰裕地下堡："
 L["Delves_No_Bountiful"] = "未检测到丰裕地下堡。"
+L["Count_Active"] = "%d active"
+L["Count_InBags"] = "%d in bags"
+L["Looted"] = "Looted"
 
 -- Great Vault
 L["GreatVault_Title"] = "宏伟宝库"
@@ -566,7 +570,7 @@ L["ProfKnowledge_DMF_Mining"] = "暗月马戏团：蒸汽坦克，重装上阵"
 L["ProfKnowledge_DMF_Skinning"] = "暗月马戏团：皮革打磨"
 L["ProfKnowledge_DMF_Tailoring"] = "暗月马戏团：遍地旗帜！"
 
--- Alt Weekly Board
+-- Alt Weekly BoardConfig_AutoHidePanelHeaders
 L["AltBoard_Title"] = "追踪其他角色周常"
 L["AltBoard_ButtonLabel"] = "ALTS"
 L["AltBoard_OpenTooltip"] = "打开追踪窗口"
