@@ -32,6 +32,8 @@ local FONT_SIZE_MAX = 20
 local ROW_HEIGHT    = 18
 local HEADER_HEIGHT = 18
 local PADDING       = 6
+local BuildModuleStatsCache
+local GetModuleStats
 
 local GetWindowLayoutValue
 local SetWindowLayoutValue
@@ -1697,6 +1699,7 @@ function MR:RefreshUI()
     if not self.frame or not self.content then return end
 
     RecalcLayout()
+    self._moduleStatsCache = BuildModuleStatsCache(self)
 
     for _, w in ipairs(self.widgets or {}) do
         w:Hide(); w:SetParent(nil)
@@ -1717,9 +1720,12 @@ function MR:RefreshUI()
     for _, mod in ipairs(MR:GetOrderedModules()) do
         local modVisible = not mod.isVisible or mod:isVisible()
         if MR:IsModuleEnabled(mod.key) and modVisible and not MR:IsModuleDetached(mod.key) then
-            local totalRows, doneRows, shownRows = self:GetModuleRowStats(mod)
+            local stats = GetModuleStats(self, mod)
+            local totalRows = stats and stats.totalRows or 0
+            local doneRows = stats and stats.doneRows or 0
+            local shownRows = stats and stats.shownRows or 0
             if shownRows > 0 then
-                local h = self:MeasureSection(mod)
+                local h = stats and stats.height or 0
                 table.insert(visibleMods, { mod = mod, h = h })
                 allTotal = allTotal + shownRows
                 allDone = allDone + math.min(doneRows, shownRows)
@@ -1798,7 +1804,8 @@ function MR:RefreshUI()
         local modVisible = not mod.isVisible or mod:isVisible()
         local detached = MR:IsModuleDetached(mod.key)
         local frame = self.detachedFrames[mod.key]
-        local _, _, shownRows = self:GetModuleRowStats(mod)
+        local stats = GetModuleStats(self, mod)
+        local shownRows = stats and stats.shownRows or 0
         if detached and MR:IsModuleEnabled(mod.key) and modVisible and shownRows > 0 then
             frame = self:EnsureDetachedFrame(mod)
             seenDetached[mod.key] = true
@@ -1856,6 +1863,8 @@ function MR:RefreshUI()
     if self.altBoardFrame and self.altBoardFrame:IsShown() and self.RefreshWarbandBoard then
         self:RefreshWarbandBoard()
     end
+
+    self._moduleStatsCache = nil
 end
 
 function MR:IsRowComplete(mod, row, done)
@@ -1865,57 +1874,85 @@ function MR:IsRowComplete(mod, row, done)
     return row.max and not row.noMax and done >= row.max
 end
 
-function MR:MeasureSection(mod)
-    local isOpen = MR:IsModuleOpen(mod.key)
-    local _, _, shownRows = self:GetModuleRowStats(mod)
-    if shownRows == 0 then
-        return 0
-    end
-    local h = HEADER_HEIGHT + 1
-    if isOpen then
+BuildModuleStatsCache = function(self)
+    local cache = {}
+
+    for _, mod in ipairs(MR:GetOrderedModules()) do
+        local hideComplete = MR:IsModuleHideComplete(mod.key)
+        local isOpen = MR:IsModuleOpen(mod.key)
+        local totalRows, doneRows, shownRows = 0, 0, 0
+        local height = HEADER_HEIGHT + 1
+
         for _, row in ipairs(mod.rows) do
             local rowVisible = not row.isVisible or row.isVisible()
             if rowVisible and MR:IsRowEnabled(mod.key, row.key) then
+                totalRows = totalRows + 1
+
                 local done = MR:GetProgress(mod.key, row.key)
                 local isComplete = self:IsRowComplete(mod, row, done)
-                if not (MR:IsModuleHideComplete(mod.key) and isComplete) then
-                    h = h + ROW_HEIGHT
+                if isComplete then
+                    doneRows = doneRows + 1
+                end
+
+                if not (hideComplete and isComplete) then
+                    shownRows = shownRows + 1
+                    if isOpen then
+                        height = height + ROW_HEIGHT
+                    end
                 end
             end
         end
+
+        if shownRows == 0 then
+            height = 0
+        end
+
+        cache[mod.key] = {
+            doneRows = doneRows,
+            height = height,
+            hideComplete = hideComplete,
+            isOpen = isOpen,
+            shownRows = shownRows,
+            totalRows = totalRows,
+        }
     end
-    return h
+
+    return cache
+end
+
+GetModuleStats = function(self, mod)
+    local cache = self._moduleStatsCache
+    if cache and cache[mod.key] then
+        return cache[mod.key]
+    end
+
+    local fallback = BuildModuleStatsCache(self)
+    return fallback[mod.key]
+end
+
+function MR:MeasureSection(mod)
+    local stats = GetModuleStats(self, mod)
+    return stats and stats.height or 0
 end
 
 function MR:GetModuleRowStats(mod)
-    local hideComplete = MR:IsModuleHideComplete(mod.key)
-    local totalRows, doneRows, shownRows = 0, 0, 0
-
-    for _, row in ipairs(mod.rows) do
-        local rowVisible = not row.isVisible or row.isVisible()
-        if rowVisible and MR:IsRowEnabled(mod.key, row.key) then
-            totalRows = totalRows + 1
-
-            local isComplete = self:IsRowComplete(mod, row, MR:GetProgress(mod.key, row.key))
-            if isComplete then
-                doneRows = doneRows + 1
-            end
-            if not (hideComplete and isComplete) then
-                shownRows = shownRows + 1
-            end
-        end
+    local stats = GetModuleStats(self, mod)
+    if not stats then
+        return 0, 0, 0
     end
 
-    return totalRows, doneRows, shownRows
+    return stats.totalRows, stats.doneRows, stats.shownRows
 end
 
 function MR:BuildSection(mod, yOff, xOff, colW, col, parent, widgetBucket, opts)
     parent = parent or self.content
     widgetBucket = widgetBucket or self.widgets
     opts = opts or {}
-    local isOpen = MR:IsModuleOpen(mod.key)
-
-    local secTotal, secDone, shownRows = self:GetModuleRowStats(mod)
+    local stats = GetModuleStats(self, mod)
+    local isOpen = stats and stats.isOpen
+    local secTotal = stats and stats.totalRows or 0
+    local secDone = stats and stats.doneRows or 0
+    local shownRows = stats and stats.shownRows or 0
     if shownRows == 0 then
         return yOff
     end
@@ -2042,7 +2079,7 @@ function MR:BuildSection(mod, yOff, xOff, colW, col, parent, widgetBucket, opts)
     table.insert(widgetBucket, div)
 
     if isOpen then
-        local hideComplete = MR:IsModuleHideComplete(mod.key)
+        local hideComplete = stats and stats.hideComplete
         for _, row in ipairs(mod.rows) do
             local rowVisible = not row.isVisible or row.isVisible()
             if rowVisible and MR:IsRowEnabled(mod.key, row.key) then
