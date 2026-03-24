@@ -175,6 +175,52 @@ local function GetRenownData(faction)
     return renown, maxRenown, rep, needed
 end
 
+local function TryCall(object, methodName, ...)
+    if object and object[methodName] then
+        return pcall(object[methodName], object, ...)
+    end
+    return false
+end
+
+local function TryCallGlobal(functionName, ...)
+    local fn = _G[functionName]
+    if type(fn) == "function" then
+        return pcall(fn, ...)
+    end
+    return false
+end
+
+local function OpenMajorFactionRenown(factionId)
+    if not factionId then return end
+
+    if not EncounterJournal then
+        TryCallGlobal("EncounterJournal_LoadUI")
+    end
+
+    if not EncounterJournal then
+        return
+    end
+
+    if ToggleEncounterJournal and not EncounterJournal:IsShown() then
+        ToggleEncounterJournal()
+    elseif not EncounterJournal:IsShown() then
+        ShowUIPanel(EncounterJournal)
+    end
+
+    if EncounterJournal_OnEvent then
+        local ok = pcall(EncounterJournal_OnEvent, EncounterJournal, "SHOW_JOURNEYS_UI", factionId)
+        if ok then
+            return
+        end
+    end
+
+    if TryCall(EncounterJournal, "OnEvent", "SHOW_JOURNEYS_UI", factionId) then return end
+    if TryCall(EncounterJournal, "OpenJourneys", factionId) then return end
+    if TryCall(EncounterJournal, "ShowJourneys", factionId) then return end
+    if TryCall(EncounterJournal, "ShowJourneysTab", factionId) then return end
+    if TryCall(EncounterJournal, "SetSelectedFaction", factionId) then return end
+end
+
 local renownFrame
 
 local function BuildRenownFrame()
@@ -296,10 +342,11 @@ local function BuildRenownFrame()
         if not hidden[faction.key] then
         local cr, cg, cb = GetFactionColor(faction)
 
-        local rowFrame = CreateFrame("Frame", nil, f, "BackdropTemplate")
+        local rowFrame = CreateFrame("Button", nil, f, "BackdropTemplate")
         rowFrame:SetPoint("TOPLEFT",  f, "TOPLEFT",  PAD,       -yOff)
         rowFrame:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD,      -yOff)
         rowFrame:SetHeight(ROW_SPACE - 8)
+        rowFrame:RegisterForClicks("LeftButtonUp")
         rowFrame:SetBackdrop(MakeBackdrop())
         local rowAlpha = db.renownAlpha or 1.0
         if compact then rowAlpha = 1.0 end
@@ -383,6 +430,11 @@ local function BuildRenownFrame()
             rowFrame:SetBackdropColor(cr * 0.08, cg * 0.08, cb * 0.08, 0.85 * v)
             rowFrame:SetBackdropBorderColor(cr * 0.4, cg * 0.4, cb * 0.4, 0.8 * v)
             GameTooltip:Hide()
+        end)
+        rowFrame:SetScript("OnClick", function(_, button)
+            if button == "LeftButton" then
+                OpenMajorFactionRenown(faction.factionId)
+            end
         end)
 
         f.factionRows[faction.key] = {
