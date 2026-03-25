@@ -25,6 +25,9 @@ L["Options"] = "Opciones"
 L["UI_ChatHint"] = "/mr para comandos de chat"
 L["Options_Glow"] = "|cff2ae7c6¡Haz clic aquí para Opciones!|r"
 L["UI_ModularHint"] = "Todo es completamente modular"
+L["Expansion_Midnight"] = "Midnight"
+L["Expansion_WarWithin"] = "The War Within"
+L["Expansion_WarWithin_Short"] = "TWW"
 
 -- UI Row Tooltips
 L["Tooltip_DonePrefix"] = "Hecho: "

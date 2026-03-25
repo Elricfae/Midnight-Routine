@@ -25,6 +25,9 @@ L["Options"] = "選項"
 L["UI_ChatHint"] = "/mr 查看可用指令"
 L["Options_Glow"] = "|cff2ae7c6點擊這裡打開選項！|r"
 L["UI_ModularHint"] = "所有模組可自由配置"
+L["Expansion_Midnight"] = "Midnight"
+L["Expansion_WarWithin"] = "The War Within"
+L["Expansion_WarWithin_Short"] = "TWW"
 
 -- UI Row Tooltips
 L["Tooltip_DonePrefix"] = "已完成：\32"

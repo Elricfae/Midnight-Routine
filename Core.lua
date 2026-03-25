@@ -7,6 +7,7 @@ local L        = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
 local MR = AceAddon:NewAddon(addonName, "AceEvent-3.0", "AceBucket-3.0", "AceTimer-3.0")
 ns.MR = MR
+MR.ns = ns
 
 local DAY_SECONDS = 24 * 60 * 60
 local WEEK_SECONDS = 7 * DAY_SECONDS
@@ -76,9 +77,13 @@ local DEFAULTS = {
         syncWindowFontSize  = false,
         peekOnHover         = false,
         characterWindowLayout = false,
+        selectedExpansion   = "midnight",
+        altBoardSelectedExpansion = "midnight",
         altBoardHiddenCharacters = {},
         altBoardShowHidden = false,
         altBoardCollapsedModules = {},
+        expansionModuleStates = {},
+        expansionModuleOrder = {},
     },
     char = {
         progress = {},
@@ -97,11 +102,20 @@ local DEFAULTS = {
         settingsMigrated = false,
         windowLayout = {},
         mediaSettings = {},
+        expansionModuleStates = {},
+        expansionModuleOrder = {},
     },
 }
 
 MR.modules     = {}
 MR.moduleByKey = {}
+MR.expansions  = {
+    midnight = {
+        key = "midnight",
+        label = L["Expansion_Midnight"] or "Midnight",
+        shortLabel = L["Expansion_Midnight"] or "Midnight",
+    },
+}
 
 local function DeepCopy(value)
     if type(value) ~= "table" then
@@ -213,13 +227,167 @@ local function IsAltBoardModule(mod)
     return mod.key:match("^story_campaign_") ~= nil
 end
 
+function MR:RegisterExpansion(def)
+    assert(type(def) == "table", "MR expansion registration requires a table")
+    assert(def.key, "MR expansion missing .key")
+
+    local existing = self.expansions[def.key] or {}
+    self.expansions[def.key] = {
+        key = def.key,
+        label = def.label or existing.label or def.key,
+        shortLabel = def.shortLabel or existing.shortLabel or def.label or def.key,
+        order = def.order or existing.order or 100,
+    }
+end
+
+function MR:GetModuleExpansionKey(modOrKey)
+    local mod = modOrKey
+    if type(modOrKey) == "string" then
+        mod = self.moduleByKey[modOrKey]
+    end
+
+    return (mod and mod.expansionKey) or "midnight"
+end
+
+function MR:GetExpansionInfo(key)
+    key = key or "midnight"
+    return self.expansions[key] or {
+        key = key,
+        label = key,
+        shortLabel = key,
+        order = 999,
+    }
+end
+
+function MR:GetAvailableExpansions()
+    local seen = {}
+    local result = {}
+
+    for key, info in pairs(self.expansions or {}) do
+        seen[key] = true
+        result[#result + 1] = self:GetExpansionInfo(key)
+    end
+
+    for _, mod in ipairs(self.modules) do
+        local key = self:GetModuleExpansionKey(mod)
+        if not seen[key] then
+            seen[key] = true
+            result[#result + 1] = self:GetExpansionInfo(key)
+        end
+    end
+
+    table.sort(result, function(a, b)
+        local ao = a.order or 999
+        local bo = b.order or 999
+        if ao ~= bo then
+            return ao < bo
+        end
+        return (a.label or a.key) < (b.label or b.key)
+    end)
+
+    return result
+end
+
+function MR:GetSelectableExpansions()
+    local counts = {}
+    for _, mod in ipairs(self.modules) do
+        local key = self:GetModuleExpansionKey(mod)
+        counts[key] = (counts[key] or 0) + 1
+    end
+
+    local result = {}
+    for key, count in pairs(counts) do
+        if count > 0 then
+            result[#result + 1] = self:GetExpansionInfo(key)
+        end
+    end
+
+    table.sort(result, function(a, b)
+        local ao = a.order or 999
+        local bo = b.order or 999
+        if ao ~= bo then
+            return ao < bo
+        end
+        return (a.label or a.key) < (b.label or b.key)
+    end)
+
+    return result
+end
+
+function MR:GetSelectedExpansionKey(forAltBoard)
+    if not (self and self.db and self.db.profile) then
+        return "midnight"
+    end
+
+    local key = forAltBoard and self.db.profile.altBoardSelectedExpansion or self.db.profile.selectedExpansion
+    if key and self.expansions[key] then
+        return key
+    end
+
+    return "midnight"
+end
+
+function MR:SetSelectedExpansionKey(key, forAltBoard)
+    key = key or "midnight"
+    if not self.expansions[key] then
+        key = "midnight"
+    end
+
+    if forAltBoard then
+        self.db.profile.altBoardSelectedExpansion = key
+        if self.altBoardFrame and self.altBoardFrame:IsShown() and self.RefreshWarbandBoard then
+            self:RefreshWarbandBoard()
+        end
+        return
+    end
+
+    self.db.profile.selectedExpansion = key
+    self._orderedModulesCache = nil
+    if self.RefreshUI then
+        self:RefreshUI()
+    end
+end
+
+function MR:GetVisibleExpansionModules(expansionKey)
+    expansionKey = expansionKey or self:GetSelectedExpansionKey()
+    local result = {}
+    for _, mod in ipairs(self.modules) do
+        if self:GetModuleExpansionKey(mod) == expansionKey then
+            result[#result + 1] = mod
+        end
+    end
+    return result
+end
+
 function MR:RegisterModule(def)
     assert(def.key,   "MR module missing .key")
     assert(def.label, "MR module missing .label")
     assert(def.rows,  "MR module missing .rows")
+    def.expansionKey = def.expansionKey or "midnight"
+
+    if self.moduleByKey[def.key] then
+        error(("MR duplicate module key: %s"):format(tostring(def.key)))
+    end
+
     table.insert(self.modules, def)
     self.moduleByKey[def.key] = def
     self._orderedModulesCache = nil
+
+    if self.RebuildTurnInCompletions then
+        self:RebuildTurnInCompletions()
+    end
+
+    if self.BuildSpellIndex then
+        self:BuildSpellIndex()
+    end
+
+    if self.db then
+        if self.Scan then
+            self:Scan()
+        elseif self.RefreshUI then
+            self:RefreshUI()
+        end
+    end
 end
 
 function MR:GetWeeklyRewardActivityBuckets()
@@ -278,6 +446,7 @@ function MR:GetWarbandWeeklyData()
     end
 
     local results = {}
+    local selectedExpansion = self:GetSelectedExpansionKey(true)
     local currentKey = self:GetCurrentCharacterKey()
     local resetAt = self.GetLastResetTimestamp and self:GetLastResetTimestamp() or 0
     local hiddenChars = (self.db and self.db.profile and self.db.profile.altBoardHiddenCharacters) or {}
@@ -306,9 +475,14 @@ function MR:GetWarbandWeeklyData()
                 activeRows = 0,
             }
 
+            local charModuleStateBuckets = type(charData.expansionModuleStates) == "table" and charData.expansionModuleStates or nil
+            local charModuleStates = (charModuleStateBuckets and charModuleStateBuckets[selectedExpansion])
+                or ((selectedExpansion == "midnight") and type(charData.modules) == "table" and charData.modules)
+                or {}
+
             for _, mod in ipairs(self.modules) do
-                if IsAltBoardModule(mod) then
-                    local moduleSettings = type(charData.modules) == "table" and charData.modules[mod.key] or nil
+                if IsAltBoardModule(mod) and self:GetModuleExpansionKey(mod) == selectedExpansion then
+                    local moduleSettings = type(charModuleStates) == "table" and charModuleStates[mod.key] or nil
                     local moduleEnabled = not (moduleSettings and moduleSettings.enabled == false)
                     local moduleVisible = moduleEnabled and (not mod.isVisible or mod:isVisible())
                     local modProgress = charData.progress[mod.key] or {}
@@ -566,58 +740,104 @@ function MR:SetManualOverride(modKey, rowKey, val, maxVal)
     end
 end
 
-function MR:GetOrderedModules()
-    if self._orderedModulesCache then return self._orderedModulesCache end
-    local saved = self:GetActiveModuleOrderStorage()
+function MR:GetOrderedModules(expansionKey)
+    expansionKey = expansionKey or self:GetSelectedExpansionKey()
+    if expansionKey == self:GetSelectedExpansionKey() and self._orderedModulesCache then
+        return self._orderedModulesCache
+    end
+    local modules = self:GetVisibleExpansionModules(expansionKey)
+    local saved = self:GetActiveModuleOrderStorage(expansionKey)
     if not saved or #saved == 0 then
-        self._orderedModulesCache = self.modules
-        return self.modules
+        if expansionKey == self:GetSelectedExpansionKey() then
+            self._orderedModulesCache = modules
+        end
+        return modules
     end
     local result, seen = {}, {}
-    for _, mod in ipairs(self.modules) do seen[mod.key] = mod end
+    for _, mod in ipairs(modules) do seen[mod.key] = mod end
     for _, key in ipairs(saved) do
         if seen[key] then table.insert(result, seen[key]); seen[key] = nil end
     end
-    for _, mod in ipairs(self.modules) do
+    for _, mod in ipairs(modules) do
         if seen[mod.key] then table.insert(result, mod) end
     end
-    self._orderedModulesCache = result
+    if expansionKey == self:GetSelectedExpansionKey() then
+        self._orderedModulesCache = result
+    end
     return result
 end
 
-function MR:GetActiveModuleStorage()
+function MR:GetActiveModuleStorage(expansionKey)
     if not (self and self.db) then
         return nil
     end
 
+    expansionKey = expansionKey or self:GetSelectedExpansionKey()
+
     if self:IsCharacterWindowLayoutEnabled() then
-        self.db.char.modules = self.db.char.modules or {}
-        return self.db.char.modules
+        self.db.char.expansionModuleStates = self.db.char.expansionModuleStates or {}
+        if expansionKey == "midnight" then
+            self.db.char.modules = self.db.char.modules or {}
+            self.db.char.expansionModuleStates[expansionKey] = self.db.char.modules
+        else
+            self.db.char.expansionModuleStates[expansionKey] = self.db.char.expansionModuleStates[expansionKey] or {}
+        end
+        return self.db.char.expansionModuleStates[expansionKey]
     end
 
-    self.db.profile.modules = self.db.profile.modules or {}
-    return self.db.profile.modules
+    self.db.profile.expansionModuleStates = self.db.profile.expansionModuleStates or {}
+    if expansionKey == "midnight" then
+        self.db.profile.modules = self.db.profile.modules or {}
+        self.db.profile.expansionModuleStates[expansionKey] = self.db.profile.modules
+    else
+        self.db.profile.expansionModuleStates[expansionKey] = self.db.profile.expansionModuleStates[expansionKey] or {}
+    end
+    return self.db.profile.expansionModuleStates[expansionKey]
 end
 
-function MR:GetActiveModuleOrderStorage()
+function MR:GetActiveModuleOrderStorage(expansionKey)
     if not (self and self.db) then
         return nil
     end
 
+    expansionKey = expansionKey or self:GetSelectedExpansionKey()
+
     if self:IsCharacterWindowLayoutEnabled() then
-        self.db.char.moduleOrder = self.db.char.moduleOrder or {}
-        return self.db.char.moduleOrder
+        self.db.char.expansionModuleOrder = self.db.char.expansionModuleOrder or {}
+        if expansionKey == "midnight" then
+            self.db.char.moduleOrder = self.db.char.moduleOrder or {}
+            self.db.char.expansionModuleOrder[expansionKey] = self.db.char.moduleOrder
+        else
+            self.db.char.expansionModuleOrder[expansionKey] = self.db.char.expansionModuleOrder[expansionKey] or {}
+        end
+        return self.db.char.expansionModuleOrder[expansionKey]
     end
 
-    self.db.profile.moduleOrder = self.db.profile.moduleOrder or {}
-    return self.db.profile.moduleOrder
+    self.db.profile.expansionModuleOrder = self.db.profile.expansionModuleOrder or {}
+    if expansionKey == "midnight" then
+        self.db.profile.moduleOrder = self.db.profile.moduleOrder or {}
+        self.db.profile.expansionModuleOrder[expansionKey] = self.db.profile.moduleOrder
+    else
+        self.db.profile.expansionModuleOrder[expansionKey] = self.db.profile.expansionModuleOrder[expansionKey] or {}
+    end
+    return self.db.profile.expansionModuleOrder[expansionKey]
 end
 
 function MR:SetModuleOrder(orderedKeys)
     if self:IsCharacterWindowLayoutEnabled() then
-        self.db.char.moduleOrder = orderedKeys
+        local expansionKey = self:GetSelectedExpansionKey()
+        self.db.char.expansionModuleOrder = self.db.char.expansionModuleOrder or {}
+        self.db.char.expansionModuleOrder[expansionKey] = orderedKeys
+        if expansionKey == "midnight" then
+            self.db.char.moduleOrder = orderedKeys
+        end
     else
-        self.db.profile.moduleOrder = orderedKeys
+        local expansionKey = self:GetSelectedExpansionKey()
+        self.db.profile.expansionModuleOrder = self.db.profile.expansionModuleOrder or {}
+        self.db.profile.expansionModuleOrder[expansionKey] = orderedKeys
+        if expansionKey == "midnight" then
+            self.db.profile.moduleOrder = orderedKeys
+        end
     end
     self._orderedModulesCache = nil
 end
@@ -1169,7 +1389,7 @@ function MR:Scan()
     if self.RefreshRenown then self:RefreshRenown() end
 end
 
-local TURN_IN_COMPLETIONS = {
+local STATIC_TURN_IN_COMPLETIONS = {
     [89268] = { mod = "s1_weekly",           row = "lost_legends"        },
     [89289] = { mod = "s1_weekly",           row = "saltherils_soiree"   },
     [91966] = { mod = "s1_weekly",           row = "saltherils_soiree"   },
@@ -1181,6 +1401,29 @@ local TURN_IN_COMPLETIONS = {
     [90962] = { mod = "midnight_activities", row = "stormarion_assault"  },
     [94835] = { mod = "pvp_weeklies",        row = "early_training"      },
 }
+
+local TURN_IN_COMPLETIONS = {}
+
+function MR:RebuildTurnInCompletions()
+    wipe(TURN_IN_COMPLETIONS)
+
+    for questID, entry in pairs(STATIC_TURN_IN_COMPLETIONS) do
+        TURN_IN_COMPLETIONS[questID] = entry
+    end
+
+    for _, mod in ipairs(self.modules) do
+        for _, row in ipairs(mod.rows) do
+            if row.turnInTracked and row.questIds then
+                for _, questID in ipairs(row.questIds) do
+                    TURN_IN_COMPLETIONS[questID] = {
+                        mod = mod.key,
+                        row = row.key,
+                    }
+                end
+            end
+        end
+    end
+end
 
 local WEEKLY_RESET_SCHEDULE = {
     [1] = { weekday = 3, hour = 3 }, 
@@ -1302,8 +1545,8 @@ function MR:DoWeeklyReset()
 
     self._scanSuppressedUntil = GetTime() + 15
 
-            for _, mod in ipairs(self:GetOrderedModules()) do
-                if mod.resetType == "weekly" then
+    for _, mod in ipairs(self.modules) do
+        if mod.resetType == "weekly" then
             self.db.char.progress[mod.key] = {}
             if self.db.char.manualOverrides then
                 self.db.char.manualOverrides[mod.key] = nil
@@ -1550,6 +1793,7 @@ function MR:OnEnteringWorld()
     self.db.char.lastSyncAt = GetServerTime()
     self:RefreshPlayerProfessions()
     self:RefreshProfessionConcentration()
+    self:RebuildTurnInCompletions()
     self:BuildSpellIndex()
     local temporarilyHidden = self._toggleRestoreState ~= nil
 

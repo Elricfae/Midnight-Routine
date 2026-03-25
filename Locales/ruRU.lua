@@ -25,6 +25,9 @@ L["Options"] = "Настройки"
 L["UI_ChatHint"] = "/mr для команд в чате"
 L["Options_Glow"] = "|cff2ae7c6Нажмите здесь для настройки!|r"
 L["UI_ModularHint"] = "Полностью модульная система"
+L["Expansion_Midnight"] = "Midnight"
+L["Expansion_WarWithin"] = "The War Within"
+L["Expansion_WarWithin_Short"] = "TWW"
 
 -- UI Row Tooltips
 L["Tooltip_DonePrefix"] = "Выполнено: "

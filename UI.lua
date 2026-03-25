@@ -274,6 +274,216 @@ local function WBConcentrationColor(entry)
     return 1.00, 0.76, 0.28
 end
 
+local function GetExpansionDisplayInfo(forAltBoard)
+    local key = MR:GetSelectedExpansionKey(forAltBoard)
+    return MR:GetExpansionInfo(key)
+end
+
+local function GetExpansionDisplayLabel(forAltBoard)
+    local info = GetExpansionDisplayInfo(forAltBoard)
+    return info and (info.shortLabel or info.label or info.key) or "Midnight"
+end
+
+local function CycleExpansion(forAltBoard, direction)
+    local expansions = MR:GetSelectableExpansions()
+    if #expansions <= 1 then
+        return
+    end
+
+    local currentKey = MR:GetSelectedExpansionKey(forAltBoard)
+    local currentIndex = 1
+    for idx, info in ipairs(expansions) do
+        if info.key == currentKey then
+            currentIndex = idx
+            break
+        end
+    end
+
+    local nextIndex = currentIndex + (direction or 1)
+    if nextIndex < 1 then
+        nextIndex = #expansions
+    elseif nextIndex > #expansions then
+        nextIndex = 1
+    end
+
+    MR:SetSelectedExpansionKey(expansions[nextIndex].key, forAltBoard)
+end
+
+local function BuildExpansionDropdown(parent, forAltBoard, opts)
+    opts = opts or {}
+
+    local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    btn:SetSize(opts.width or 150, opts.height or 18)
+    btn.forAltBoard = forAltBoard
+    btn:SetBackdrop(MakeBackdrop())
+    btn:SetBackdropColor(0.05, 0.12, 0.20, 0.95)
+    btn:SetBackdropBorderColor(0.18, 0.40, 0.45, 1)
+
+    local label = btn:CreateFontString(nil, "OVERLAY")
+    label:SetFont(FONT_ROWS, opts.fontSize or 8, "OUTLINE")
+    label:SetPoint("LEFT", btn, "LEFT", 8, 1)
+    label:SetPoint("RIGHT", btn, "RIGHT", -20, 1)
+    label:SetJustifyH("LEFT")
+    label:SetTextColor(0.76, 0.97, 0.94)
+    btn._label = label
+
+    local caret = btn:CreateFontString(nil, "OVERLAY")
+    caret:SetFont(FONT_HEADERS, 10, "OUTLINE")
+    caret:SetPoint("RIGHT", btn, "RIGHT", -7, 1)
+    caret:SetText("v")
+    caret:SetTextColor(0.78, 0.90, 0.92)
+    btn._caret = caret
+
+    local popup = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    popup:SetFrameStrata("DIALOG")
+    popup:SetFrameLevel(50)
+    popup:SetBackdrop(MakeBackdrop())
+    popup:SetBackdropColor(0.04, 0.09, 0.15, 0.98)
+    popup:SetBackdropBorderColor(0.18, 0.40, 0.45, 1)
+    popup:Hide()
+    popup.buttons = {}
+    btn._popup = popup
+
+    local dismiss = CreateFrame("Frame", nil, UIParent)
+    dismiss:SetAllPoints(UIParent)
+    dismiss:SetFrameStrata("DIALOG")
+    dismiss:SetFrameLevel(49)
+    dismiss:EnableMouse(true)
+    dismiss:Hide()
+    dismiss:SetScript("OnMouseDown", function()
+        popup:Hide()
+        dismiss:Hide()
+    end)
+    btn._dismiss = dismiss
+
+    function btn:ApplyFonts()
+        local fontSize = GetFontSize()
+        local labelSize = opts.fontSize or math.max(8, fontSize - 1)
+        local caretSize = math.max(9, labelSize + 1)
+
+        if self._label then
+            self._label:SetFont(FONT_ROWS, labelSize, "OUTLINE")
+        end
+        if self._caret then
+            self._caret:SetFont(FONT_HEADERS, caretSize, "OUTLINE")
+        end
+
+        for _, row in ipairs(popup.buttons) do
+            if row._label then
+                row._label:SetFont(FONT_ROWS, labelSize, "OUTLINE")
+            end
+            if row._check then
+                row._check:SetFont(FONT_HEADERS, caretSize, "OUTLINE")
+            end
+        end
+    end
+
+    btn:SetScript("OnEnter", function(selfBtn)
+        selfBtn:SetBackdropColor(0.08, 0.18, 0.28, 0.98)
+        selfBtn:SetBackdropBorderColor(0.26, 0.78, 0.72, 1)
+    end)
+    btn:SetScript("OnLeave", function(selfBtn)
+        selfBtn:SetBackdropColor(0.05, 0.12, 0.20, 0.95)
+        selfBtn:SetBackdropBorderColor(0.18, 0.40, 0.45, 1)
+    end)
+
+    function btn:Update()
+        local expansions = MR:GetSelectableExpansions()
+        self:ApplyFonts()
+        if #expansions <= 1 then
+            self:Hide()
+            return
+        end
+
+        local current = MR:GetExpansionInfo(MR:GetSelectedExpansionKey(self.forAltBoard))
+        self._label:SetText(current.shortLabel or current.label or current.key)
+        self:Show()
+    end
+
+    local function EnsurePopupButton(index)
+        local row = popup.buttons[index]
+        if row then
+            return row
+        end
+
+        row = CreateFrame("Button", nil, popup, "BackdropTemplate")
+        row:SetHeight(18)
+        row:SetBackdrop(MakeBackdrop())
+        row:SetBackdropColor(0.05, 0.12, 0.20, 0.94)
+        row:SetBackdropBorderColor(0.12, 0.26, 0.32, 0.95)
+
+        row._label = row:CreateFontString(nil, "OVERLAY")
+        row._label:SetFont(FONT_ROWS, opts.fontSize or 8, "OUTLINE")
+        row._label:SetPoint("LEFT", row, "LEFT", 8, 1)
+        row._label:SetPoint("RIGHT", row, "RIGHT", -22, 1)
+        row._label:SetJustifyH("LEFT")
+
+        row._check = row:CreateFontString(nil, "OVERLAY")
+        row._check:SetFont(FONT_HEADERS, 10, "OUTLINE")
+        row._check:SetPoint("RIGHT", row, "RIGHT", -7, 1)
+
+        row:SetScript("OnEnter", function(selfRow)
+            selfRow:SetBackdropColor(0.08, 0.18, 0.28, 0.98)
+            selfRow:SetBackdropBorderColor(0.26, 0.78, 0.72, 1)
+        end)
+        row:SetScript("OnLeave", function(selfRow)
+            local active = selfRow._checked == true
+            selfRow:SetBackdropColor(active and 0.10 or 0.05, active and 0.22 or 0.12, active and 0.30 or 0.20, active and 0.98 or 0.94)
+            selfRow:SetBackdropBorderColor(active and 0.28 or 0.12, active and 0.86 or 0.26, active and 0.78 or 0.32, active and 1 or 0.95)
+        end)
+
+        popup.buttons[index] = row
+        return row
+    end
+
+    btn:SetScript("OnClick", function(selfBtn)
+        local expansions = MR:GetSelectableExpansions()
+        if #expansions <= 1 then
+            return
+        end
+
+        local selectedKey = MR:GetSelectedExpansionKey(selfBtn.forAltBoard)
+        local rowWidth = math.max(selfBtn:GetWidth(), 130)
+        popup:ClearAllPoints()
+        popup:SetPoint("TOPLEFT", selfBtn, "BOTTOMLEFT", 0, -4)
+        popup:SetSize(rowWidth, (#expansions * 20) + 6)
+
+        for index, info in ipairs(expansions) do
+            local row = EnsurePopupButton(index)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", popup, "TOPLEFT", 3, -3 - ((index - 1) * 20))
+            row:SetSize(rowWidth - 6, 18)
+            row._checked = info.key == selectedKey
+            row._label:SetText(info.shortLabel or info.label or info.key)
+            row._label:SetTextColor(row._checked and 0.96 or 0.74, row._checked and 1.00 or 0.90, row._checked and 1.00 or 0.92)
+            row._check:SetText(row._checked and "x" or "")
+            row._check:SetTextColor(0.80, 0.94, 0.92)
+            row:SetBackdropColor(row._checked and 0.10 or 0.05, row._checked and 0.22 or 0.12, row._checked and 0.30 or 0.20, row._checked and 0.98 or 0.94)
+            row:SetBackdropBorderColor(row._checked and 0.28 or 0.12, row._checked and 0.86 or 0.26, row._checked and 0.78 or 0.32, row._checked and 1 or 0.95)
+            row:SetScript("OnClick", function()
+                MR:SetSelectedExpansionKey(info.key, selfBtn.forAltBoard)
+                popup:Hide()
+                dismiss:Hide()
+            end)
+            row:Show()
+        end
+
+        for index = #expansions + 1, #popup.buttons do
+            popup.buttons[index]:Hide()
+        end
+
+        if popup:IsShown() then
+            popup:Hide()
+            dismiss:Hide()
+        else
+            dismiss:Show()
+            popup:Show()
+        end
+    end)
+
+    return btn
+end
+
 local function WBConcentrationText(entry)
     if not entry then
         return "-"
@@ -435,6 +645,24 @@ function MR:RefreshWarbandBoard()
     local frame = self.altBoardFrame
     if not frame then return end
     frame:SetScale(self.db.profile.scale or 1)
+    local expansionInfo = GetExpansionDisplayInfo(true)
+
+    if frame.titleText then
+        frame.titleText:SetText(L["AltBoard_Title"] or "Alt Weekly Board")
+    end
+    if frame.expansionDropdown and frame.expansionDropdown.Update then
+        frame.expansionDropdown:Update()
+    end
+
+    if frame.summarySub then
+        frame.summarySub:ClearAllPoints()
+        frame.summarySub:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -46)
+    end
+    if frame.leftPane then
+        frame.leftPane:ClearAllPoints()
+        frame.leftPane:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -66)
+        frame.leftPane:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 12)
+    end
 
     local data = self:GetWarbandWeeklyData()
     frame._data = data
@@ -471,9 +699,9 @@ function MR:RefreshWarbandBoard()
     frame.summaryValue:SetTextColor(countColor(totalDone, math.max(totalRows, 1)))
 
     if #data <= 1 then
-        frame.summarySub:SetText(L["AltBoard_LoginAltPrompt"] or "Log into an alt for it to show here.")
+        frame.summarySub:SetText(string.format("%s  |  %s", expansionInfo.shortLabel or expansionInfo.label or expansionInfo.key, L["AltBoard_LoginAltPrompt"] or "Log into an alt for it to show here."))
     else
-        frame.summarySub:SetText(string.format(L["AltBoard_CharactersTracked"] or "%d characters tracked", #data))
+        frame.summarySub:SetText(string.format("%s  |  " .. (L["AltBoard_CharactersTracked"] or "%d characters tracked"), expansionInfo.shortLabel or expansionInfo.label or expansionInfo.key, #data))
     end
 
     if frame.showHiddenBtn and frame.showHiddenBtn._label then
@@ -600,7 +828,7 @@ function MR:RefreshWarbandBoard()
     frame.detailContent:SetWidth(detailWidth)
 
     local orderIndex = {}
-    for idx, mod in ipairs(MR:GetOrderedModules()) do
+    for idx, mod in ipairs(MR:GetOrderedModules(MR:GetSelectedExpansionKey(true))) do
         orderIndex[mod.key] = idx
     end
     table.sort(selected.modules, function(a, b)
@@ -778,6 +1006,8 @@ function MR:ToggleWarbandBoard()
         local title = titleBar:CreateFontString(nil, "OVERLAY")
         title:SetFont(FONT_HEADERS, math.max(12, GetFontSize() + 2), "OUTLINE")
         title:SetPoint("LEFT", titleBar, "LEFT", 10, 0)
+        title:SetPoint("RIGHT", titleBar, "RIGHT", -150, 0)
+        title:SetJustifyH("LEFT")
         title:SetText(L["AltBoard_Title"] or "Alt Weekly Board")
         title:SetTextColor(0.92, 0.97, 1.0)
 
@@ -788,11 +1018,17 @@ function MR:ToggleWarbandBoard()
 
         local summarySub = frame:CreateFontString(nil, "OVERLAY")
         summarySub:SetFont(FONT_ROWS, math.max(8, GetFontSize() - 1), "OUTLINE")
-        summarySub:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -46)
+        summarySub:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -66)
         summarySub:SetTextColor(0.62, 0.71, 0.79)
         summarySub:SetText("")
 
         CloseButton(titleBar, function() frame:Hide() end)
+
+        local expansionDropdown = BuildExpansionDropdown(frame, true, {
+            width = 160,
+            height = 18,
+        })
+        expansionDropdown:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", -4, 0)
 
         local leftPane = CreateFrame("Frame", nil, frame, "BackdropTemplate")
         leftPane:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -66)
@@ -897,6 +1133,8 @@ function MR:ToggleWarbandBoard()
         frame.detailContent = detailContent
         frame.summaryValue = summaryValue
         frame.summarySub = summarySub
+        frame.expansionDropdown = expansionDropdown
+        frame.leftPane = leftPane
         frame.showHiddenBtn = showHiddenBtn
         frame.heroName = heroName
         frame.heroMeta = heroMeta
@@ -1058,6 +1296,8 @@ function MR:BuildUI()
     local title = titleBar:CreateFontString(nil, "OVERLAY")
     title:SetFont(FONT_HEADERS, math.max(9, GetFontSize()), "OUTLINE")
     title:SetPoint("LEFT", titleIcon, "RIGHT", 5, 0)
+    title:SetPoint("RIGHT", titleBar, "RIGHT", -110, 0)
+    title:SetJustifyH("LEFT")
     title:SetText(L["Title"])
     self.titleText = title
 
@@ -1281,9 +1521,20 @@ function MR:BuildUI()
     self.warbandBtn = warbandBtn
 
     titleCount:SetPoint("RIGHT", warbandBtn, "LEFT", -6, 0)
+    title:ClearAllPoints()
+    title:SetPoint("LEFT", titleIcon, "RIGHT", 5, 0)
+    title:SetPoint("RIGHT", titleCount, "LEFT", -8, 0)
+    title:SetJustifyH("LEFT")
+
+    local expansionDropdown = BuildExpansionDropdown(f, false, {
+        width = 150,
+        height = 16,
+    })
+    expansionDropdown:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -4, 0)
+    self.expansionDropdown = expansionDropdown
 
     local scroll = CreateFrame("ScrollFrame", nil, f)
-    scroll:SetPoint("TOPLEFT",     titleBar, "BOTTOMLEFT",  0,  -1)
+    scroll:SetPoint("TOPLEFT",     f, "TOPLEFT", 0, -(HEADER_H + 1))
     scroll:SetPoint("BOTTOMRIGHT", f,        "BOTTOMRIGHT", -9,  4)
     scroll:EnableMouseWheel(true)
     self.scroll = scroll
@@ -1636,6 +1887,19 @@ function MR:RefreshUI()
 
     RecalcLayout()
     self._moduleStatsCache = BuildModuleStatsCache(self)
+    local expansionInfo = GetExpansionDisplayInfo(false)
+
+    if self.titleText then
+        self.titleText:SetText(L["Title"] or "Routine")
+    end
+    if self.expansionDropdown and self.expansionDropdown.Update then
+        self.expansionDropdown:Update()
+    end
+    if self.scroll then
+        self.scroll:ClearAllPoints()
+        self.scroll:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 0, -25)
+        self.scroll:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", -9, 4)
+    end
 
     for _, w in ipairs(self.widgets or {}) do
         w:Hide(); w:SetParent(nil)
@@ -1819,6 +2083,9 @@ function MR:ApplySharedMediaSettings()
     if self.warbandBtnText then
         self.warbandBtnText:SetFont(FONT_HEADERS, 9, "OUTLINE")
     end
+    if self.expansionDropdown and self.expansionDropdown.ApplyFonts then
+        self.expansionDropdown:ApplyFonts()
+    end
     if self.altBoardFrame then
         local frame = self.altBoardFrame
         if frame.titleText then
@@ -1844,6 +2111,9 @@ function MR:ApplySharedMediaSettings()
         end
         if frame.heroStatus then
             frame.heroStatus:SetFont(FONT_ROWS, math.max(10, fontSize), "OUTLINE")
+        end
+        if frame.expansionDropdown and frame.expansionDropdown.ApplyFonts then
+            frame.expansionDropdown:ApplyFonts()
         end
     end
     ApplyTheme()
