@@ -524,6 +524,21 @@ RefreshRenownFrame = function()
     local showRep    = db.renownShowRep ~= false
     local hideMaxed  = db.renownHideMaxed
     local showLevel  = db.renownShowLevel ~= false
+    local minimized  = db.renownMinimized
+
+    if minimized then
+        for _, row in pairs(renownFrame.factionRows) do
+            if row.rowFrame then
+                row.rowFrame:Hide()
+            end
+        end
+        if renownFrame.divider then
+            renownFrame.divider:Hide()
+        end
+        renownFrame:SetHeight(HEADER_H)
+        return
+    end
+
     for _, row in pairs(renownFrame.factionRows) do
         local faction   = row.faction
         local renown, maxRenown, rep, needed = GetRenownData(faction)
@@ -589,6 +604,10 @@ RefreshRenownFrame = function()
                 row.barLabel:SetTextColor(0.85, 0.85, 0.85)
             end
         end
+    end
+
+    if renownFrame.divider then
+        renownFrame.divider:Show()
     end
 end
 
