@@ -299,6 +299,8 @@ local function BuildRenownFrame()
         function() MR:ToggleRenownConfig() end
     )
 
+    local ApplyMinimized
+
     local function UpdateMinBtn()
         return (MR.db and MR.db.profile.renownMinimized) and "+" or "-"
     end
@@ -468,7 +470,7 @@ local function BuildRenownFrame()
         end)
     end
 
-    local function ApplyMinimized(isMin)
+    ApplyMinimized = function(isMin)
         if MR.db then MR.db.profile.renownMinimized = isMin end
         if minBtn.RefreshLabel then minBtn:RefreshLabel() end
 

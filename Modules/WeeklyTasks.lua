@@ -34,6 +34,14 @@ local UATV_BRANCH_QUEST_IDS = {
     93890, 93767, 94457, 93909, 93911, 93769, 93891, 93910, 93912, 93889, 93892, 93913, 93766,
 }
 
+local HALDURON_WEEKLIES = {
+    { quest = 93753, name = L["Halduron_MagistersTerrace"]   },
+    { quest = 93754, name = L["Halduron_MaisaraCaverns"]     },
+    { quest = 93755, name = L["Halduron_DenOfNalorakk"]      },
+    { quest = 93756, name = L["Halduron_BlindingVale"]       },
+    { quest = 95468, name = L["Halduron_HopeDarkestCorners"] },
+}
+
 local MIDNIGHT_MAP_IDS = {
     [2393] = true,
     [2395] = true,
@@ -71,6 +79,14 @@ local function GetMapName(_, fallback)
     return fallback
 end
 
+local function ResolveVariantName(variant)
+    if not variant then
+        return nil
+    end
+
+    return MR:GetQuestName(variant.quest, variant.name)
+end
+
 local function IsQuestCurrentlyActive(questId)
     if not questId then
         return false
@@ -101,7 +117,7 @@ local function CollectSpecialAssignments()
         local entry = {
             quest = assignment.quest,
             unlock = assignment.unlock,
-            name = assignment.name,
+            name = MR:GetQuestName(assignment.quest, assignment.name),
             zone = assignment.zone,
             zoneName = GetMapName(assignment.zone, assignment.zoneLabel),
         }
@@ -119,10 +135,33 @@ end
 local function FindActiveQuestVariant(variants)
     for _, variant in ipairs(variants) do
         if IsQuestCurrentlyActive(variant.quest) then
-            return variant
+            return {
+                quest = variant.quest,
+                name = ResolveVariantName(variant),
+            }
         end
     end
     return nil
+end
+
+local function CollectQuestVariants(variants)
+    local completed = {}
+    local active = {}
+
+    for _, variant in ipairs(variants) do
+        local entry = {
+            quest = variant.quest,
+            name = ResolveVariantName(variant),
+        }
+
+        if C_QuestLog.IsQuestFlaggedCompleted(variant.quest) then
+            table.insert(completed, entry)
+        elseif IsQuestCurrentlyActive(variant.quest) then
+            table.insert(active, entry)
+        end
+    end
+
+    return completed, active
 end
 
 function MR:DebugSpecialAssignments()
@@ -156,6 +195,10 @@ MR:RegisterModule({
         db[mod.key]["sa_active_name"] = nil
         db[mod.key]["sa_active_names"] = nil
         db[mod.key]["sa_active_zones"] = nil
+        db[mod.key]["halduron_active_name"] = nil
+        db[mod.key]["halduron_active_names"] = nil
+        db[mod.key]["halduron_completed_name"] = nil
+        db[mod.key]["halduron_completed_names"] = nil
 
         local completedAssignments, activeAssignments = CollectSpecialAssignments()
         local totalAssignments = math.max(#completedAssignments + #activeAssignments, 1)
@@ -224,6 +267,52 @@ MR:RegisterModule({
             end
         end
 
+        local completedHalduronWeeklies, activeHalduronWeeklies = CollectQuestVariants(HALDURON_WEEKLIES)
+        if #activeHalduronWeeklies > 0 then
+            local names = {}
+            for _, variant in ipairs(activeHalduronWeeklies) do
+                names[#names + 1] = variant.name
+            end
+            db[mod.key]["halduron_active_name"] = names[1]
+            db[mod.key]["halduron_active_names"] = table.concat(names, " || ")
+        end
+
+        if #completedHalduronWeeklies > 0 then
+            local names = {}
+            for _, variant in ipairs(completedHalduronWeeklies) do
+                names[#names + 1] = variant.name
+            end
+            db[mod.key]["halduron_completed_name"] = names[1]
+            db[mod.key]["halduron_completed_names"] = table.concat(names, " || ")
+        end
+
+        for _, row in ipairs(mod.rows) do
+            if row.key == "halduron_weekly" then
+                if #activeHalduronWeeklies > 1 then
+                    row.countText = string.format(L["Weekly_SA_Count_Active"] or "%d active", #activeHalduronWeeklies)
+                    row.countColor = { 1, 0.9, 0.3 }
+                    row.note = L["Weekly_Halduron_Note"]
+                elseif #activeHalduronWeeklies == 1 then
+                    row.countText = activeHalduronWeeklies[1].name
+                    row.countColor = { 1, 0.9, 0.3 }
+                    row.note = L["Weekly_Halduron_Note"]
+                elseif #completedHalduronWeeklies > 1 then
+                    row.countText = string.format(L["Weekly_SA_Count_Completed"] or "%d done", #completedHalduronWeeklies)
+                    row.countColor = { 0.4, 0.85, 0.4 }
+                    row.note = L["Weekly_Halduron_Note"]
+                elseif #completedHalduronWeeklies == 1 then
+                    row.countText = completedHalduronWeeklies[1].name
+                    row.countColor = { 0.4, 0.85, 0.4 }
+                    row.note = L["Weekly_Halduron_Note"]
+                else
+                    row.countText = nil
+                    row.countColor = nil
+                    row.note = L["Weekly_Halduron_Note"]
+                end
+                break
+            end
+        end
+
         local activeUATVBranch = FindActiveQuestVariant(UATV_BRANCHES)
         db[mod.key]["uatv_branch_name"] = activeUATVBranch and activeUATVBranch.name or nil
         db[mod.key]["uatv_branch_quest"] = activeUATVBranch and activeUATVBranch.quest or nil
@@ -282,6 +371,39 @@ MR:RegisterModule({
     end,
 
     rows = {
+        {
+            key      = "halduron_weekly",
+            label    = L["Weekly_Halduron_Label"],
+            max      = 1,
+            note     = L["Weekly_Halduron_Note"],
+            questIds = { 93753, 93754, 93755, 93756, 95468 },
+            tooltipFunc = function(tip)
+                local completedVariants, activeVariants = CollectQuestVariants(HALDURON_WEEKLIES)
+
+                tip:AddLine(" ")
+                if #activeVariants > 0 then
+                    tip:AddLine(L["Tooltip_Active_Week"], 1, 1, 1)
+                    for _, variant in ipairs(activeVariants) do
+                        tip:AddLine("  " .. variant.name, 1, 0.9, 0.3)
+                    end
+                elseif #completedVariants > 0 then
+                    tip:AddLine(L["Tooltip_Done_Completed"], 1, 1, 1)
+                    for _, variant in ipairs(completedVariants) do
+                        tip:AddLine("  " .. variant.name, 0.4, 0.85, 0.4)
+                    end
+                else
+                    tip:AddLine(L["Tooltip_No_Halduron"], 1, 1, 1)
+                    tip:AddLine(L["Tooltip_Visit_Halduron"], 0.7, 0.7, 0.7)
+                end
+            end,
+        },
+        {
+            key      = "call_to_delves",
+            label    = L["Weekly_CallToDelves_Label"],
+            max      = 1,
+            note     = L["Delves_Call_Note"],
+            questIds = { 93595 },
+        },
         {
             key      = "abundance",
             label    = L["Weekly_Abundance_Label"],

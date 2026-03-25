@@ -358,6 +358,8 @@ BuildRaresFrame = function()
         function() MR:ToggleRaresConfig() end
     )
 
+    local ApplyMinimized
+
     local function UpdateMinBtn()
         return (MR.db and MR.db.profile.raresMinimized) and "+" or "-"
     end
@@ -392,7 +394,7 @@ BuildRaresFrame = function()
         titleTxt:SetText(L["Rares_Title"])
     end
 
-    local function ApplyMinimized(isMin)
+    ApplyMinimized = function(isMin)
         if MR.db then MR.db.profile.raresMinimized = isMin end
         if minBtn.RefreshLabel then minBtn:RefreshLabel() end
         if isMin then

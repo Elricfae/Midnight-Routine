@@ -588,24 +588,14 @@ local function BuildGatheringLocationsFrame(isRetry)
     scroll:SetScript("OnVerticalScroll", UpdateScrollBar)
     frame.UpdateScrollBar = UpdateScrollBar
 
+    local ApplyMinimized
+
     local function UpdateMinBtn() return gatheringMinimized and "+" or "-" end
     local minBtn = HeaderToggleButton(titleBar, UpdateMinBtn, L["UI_Collapse"], function()
         gatheringMinimized = not gatheringMinimized
         minimized = gatheringMinimized
         if MR.db then MR.db.profile.gatheringMinimized = gatheringMinimized end
-        if minBtn.RefreshLabel then minBtn:RefreshLabel() end
-        if gatheringMinimized then
-            if frame._scroll then frame._scroll:Hide() end
-            if frame._scrollTrack then frame._scrollTrack:Hide() end
-            if frame._dragger then frame._dragger:Hide() end
-            frame:SetHeight(TITLE_H)
-        else
-            if frame._scroll then frame._scroll:Show() end
-            if frame._scrollTrack then frame._scrollTrack:Show() end
-            if frame._dragger then frame._dragger:Show() end
-            frame:SetHeight(MR.db and MR.db.profile.gatheringHeight or DEFAULT_H)
-            frame.UpdateScrollBar()
-        end
+        ApplyMinimized(gatheringMinimized)
     end)
     minBtn:SetPoint("RIGHT", closeBtn, "LEFT", -3, 0)
     gearBtn:SetPoint("RIGHT", minBtn, "LEFT", -3, 0)
@@ -786,16 +776,39 @@ local function BuildGatheringLocationsFrame(isRetry)
         frame:SetHeight(math.max(MIN_H, math.min(MAX_H, dragStartH + (dragStartY - cy))))
     end)
 
-    if minimized then
-        if frame._scroll then frame._scroll:Hide() end
-        if frame._scrollTrack then frame._scrollTrack:Hide() end
-        dragger:Hide()
-        frame:SetHeight(TITLE_H)
-    else
-        local savedH = db.gatheringHeight or DEFAULT_H
-        local naturalH = TITLE_H + 1 + yOff + 6
-        frame:SetHeight(math.min(savedH, naturalH))
+    ApplyMinimized = function(isMin)
+        gatheringMinimized = isMin and true or false
+        minimized = gatheringMinimized
+        if MR.db then MR.db.profile.gatheringMinimized = gatheringMinimized end
+        if minBtn.RefreshLabel then minBtn:RefreshLabel() end
+
+        if gatheringMinimized then
+            local left = frame:GetLeft()
+            local top  = frame:GetTop()
+            if left and top then
+                frame:ClearAllPoints()
+                frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+                if MR.db then
+                    MR:SetWindowLayoutValue("gatheringLocPos", { point = "TOPLEFT", relPoint = "BOTTOMLEFT", x = left, y = top })
+                end
+            end
+            if frame._scroll then frame._scroll:Hide() end
+            if frame._scrollTrack then frame._scrollTrack:Hide() end
+            if frame._dragger then frame._dragger:Hide() end
+            frame:SetHeight(TITLE_H)
+        else
+            if frame._scroll then frame._scroll:Show() end
+            if frame._scrollTrack then frame._scrollTrack:Show() end
+            if frame._dragger then frame._dragger:Show() end
+            local savedH = db.gatheringHeight or DEFAULT_H
+            local naturalH = TITLE_H + 1 + yOff + 6
+            frame:SetHeight(math.min(savedH, naturalH))
+            if frame.UpdateScrollBar then frame.UpdateScrollBar() end
+        end
     end
+    frame.ApplyMinimized = ApplyMinimized
+
+    ApplyMinimized(minimized)
 
     frame:SetMovable(not db.gatheringLocked)
     frame:SetScale(db.gatheringScale or 1.0)

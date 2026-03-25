@@ -259,6 +259,25 @@ function MR:GetExpansionInfo(key)
     }
 end
 
+function MR:GetQuestName(questId, fallback)
+    if not questId then
+        return fallback
+    end
+
+    if C_QuestLog and C_QuestLog.GetTitleForQuestID then
+        local title = C_QuestLog.GetTitleForQuestID(questId)
+        if title and title ~= "" then
+            return title
+        end
+    end
+
+    if C_QuestLog and C_QuestLog.RequestLoadQuestByID then
+        C_QuestLog.RequestLoadQuestByID(questId)
+    end
+
+    return fallback
+end
+
 function MR:GetAvailableExpansions()
     local seen = {}
     local result = {}
@@ -1729,6 +1748,7 @@ function MR:OnEnable()
         "QUEST_LOG_UPDATE",
         "UNIT_QUEST_LOG_CHANGED",
         "QUEST_TURNED_IN",
+        "QUEST_DATA_LOAD_RESULT",
         "LFG_COMPLETION_REWARD",
         "CURRENCY_DISPLAY_UPDATE",
         "AREA_POIS_UPDATED",

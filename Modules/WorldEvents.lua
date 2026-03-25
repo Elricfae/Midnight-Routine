@@ -117,7 +117,7 @@ end
 local function FindWorldBossQuestID(mapID, matchText, bossKey)
     local cache = GetWorldBossQuestCache()
 
-    if not (C_TaskQuest and C_TaskQuest.GetQuestsForPlayerByMapID and C_QuestLog and C_QuestLog.GetTitleForQuestID) then
+    if not (C_TaskQuest and C_TaskQuest.GetQuestsForPlayerByMapID) then
         return bossKey and cache[bossKey] or nil
     end
 
@@ -130,7 +130,7 @@ local function FindWorldBossQuestID(mapID, matchText, bossKey)
     for _, info in ipairs(quests) do
         local questID = info.questId or info.questID
         if questID then
-            local title = C_QuestLog.GetTitleForQuestID(questID)
+            local title = MR:GetQuestName(questID)
             if title and NormalizeText(title):find(needle, 1, true) then
                 if bossKey then
                     cache[bossKey] = questID
