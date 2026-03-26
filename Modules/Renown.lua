@@ -535,7 +535,7 @@ RefreshRenownFrame = function()
         if renownFrame.divider then
             renownFrame.divider:Hide()
         end
-        renownFrame:SetHeight(HEADER_H)
+        renownFrame:SetHeight((renownFrame.titleBar and renownFrame.titleBar:GetHeight()) or 24)
         return
     end
 
