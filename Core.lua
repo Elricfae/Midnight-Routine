@@ -1097,14 +1097,18 @@ function MR:ApplyPanelHeaderAutoHide(frame, titleBar)
     if not frame or not titleBar then return end
 
     if not frame._mrPanelHeaderAutoHideHooked then
+        frame._mrHeaderHoverElapsed = 0
         frame:EnableMouse(true)
         frame:HookScript("OnShow", function(self)
             if self.UpdatePanelHeaderVisibility then
                 self:UpdatePanelHeaderVisibility(MR:IsCursorWithinBounds(self))
             end
         end)
-        frame:HookScript("OnUpdate", function(self)
+        frame:HookScript("OnUpdate", function(self, elapsed)
             if not self.UpdatePanelHeaderVisibility then return end
+            self._mrHeaderHoverElapsed = (self._mrHeaderHoverElapsed or 0) + (elapsed or 0)
+            if self._mrHeaderHoverElapsed < 0.05 then return end
+            self._mrHeaderHoverElapsed = 0
             local isHovering = MR:IsCursorWithinBounds(self)
             if isHovering ~= self._mrHeaderHovering then
                 self._mrHeaderHovering = isHovering
