@@ -4,14 +4,14 @@ local MR = ns.MR
 local L = LibStub("AceLocale-3.0"):GetLocale("MidnightRoutine")
 
 local SA_ASSIGNMENTS = {
-    { quest = 91390, unlock = 94865, name = L["SA_Temple"],    zone = 2437, zoneLabel = L["Zone_ZulAman"] },
+    { quest = 91390, unlock = 94865, name = L["SA_Temple"],    zone = 2395, zoneLabel = L["Zone_EversongWoods"] },
     { quest = 91796, unlock = 94866, name = L["SA_Ours"],      zone = 2437, zoneLabel = L["Zone_ZulAman"] },
     { quest = 92063, unlock = 94390, name = L["SA_Hunter"],    zone = 2413, zoneLabel = L["Zone_Harandar"] },
     { quest = 92139, unlock = 95435, name = L["SA_Shade"],     zone = 2395, zoneLabel = L["Zone_EversongWoods"] },
-    { quest = 92145, unlock = 92848, name = L["SA_Drink"],     zone = 2395, zoneLabel = L["Zone_EversongWoods"] },
-    { quest = 93013, unlock = 94391, name = L["SA_Push"],      zone = 2413, zoneLabel = L["Zone_Harandar"] },
+    { quest = 92145, unlock = 92848, name = L["SA_Drink"],     zone = 2393, zoneLabel = L["Faction_SilvermoonCourt"] },
+    { quest = 93013, unlock = 94391, name = L["SA_Push"],      zone = 2405, zoneLabel = L["Zone_Voidstorm"] },
     { quest = 93244, unlock = 94795, name = L["SA_Agents"],    zone = 2405, zoneLabel = L["Zone_Voidstorm"] },
-    { quest = 93438, unlock = 94743, name = L["SA_Precision"], zone = 2405, zoneLabel = L["Zone_Voidstorm"] },
+    { quest = 93438, unlock = 94743, name = L["SA_Precision"], zone = 2413, zoneLabel = L["Zone_Harandar"] },
 }
 
 local UATV_BRANCHES = {
@@ -40,6 +40,18 @@ local HALDURON_WEEKLIES = {
     { quest = 93755, name = L["Halduron_DenOfNalorakk"]      },
     { quest = 93756, name = L["Halduron_BlindingVale"]       },
     { quest = 95468, name = L["Halduron_HopeDarkestCorners"] },
+}
+
+local ARCANTINA_WEEKLIES = {
+    { quest = 92319, name = L["Arcantina_AFavorToAxe"] },
+    { quest = 92321, name = L["Arcantina_AFrostbittenTally"] },
+    { quest = 92320, name = L["Arcantina_StillBehindEnemyPortals"] },
+    { quest = 92322, name = L["Arcantina_TimearForeseesProofOfDemise"] },
+    { quest = 92323, name = L["Arcantina_WhereTheFireOnceBurned"] },
+    { quest = 92324, name = L["Arcantina_UncrownedsColdCase"] },
+    { quest = 92325, name = L["Arcantina_HellscreamsHeritage"] },
+    { quest = 92326, name = L["Arcantina_TheFragranceOfTheDunes"] },
+    { quest = 92327, name = L["Arcantina_AGenerationalMoment"] },
 }
 
 local MIDNIGHT_MAP_IDS = {
@@ -101,6 +113,25 @@ local function IsQuestCurrentlyActive(questId)
             local timeLeft = C_TaskQuest.GetQuestTimeLeftSeconds(questId)
             if timeLeft and timeLeft > 0 then
                 return true
+            end
+        end
+    end
+
+    if MR.IsQuestOfferVisible and MR:IsQuestOfferVisible(questId) then
+        return true
+    end
+
+    if GetQuestID and GetQuestID() == questId then
+        return true
+    end
+
+    if C_GossipInfo and C_GossipInfo.GetAvailableQuests then
+        local availableQuests = C_GossipInfo.GetAvailableQuests()
+        if availableQuests then
+            for _, info in ipairs(availableQuests) do
+                if info.questID == questId then
+                    return true
+                end
             end
         end
     end
@@ -199,6 +230,10 @@ MR:RegisterModule({
         db[mod.key]["halduron_active_names"] = nil
         db[mod.key]["halduron_completed_name"] = nil
         db[mod.key]["halduron_completed_names"] = nil
+        db[mod.key]["arcantina_active_name"] = nil
+        db[mod.key]["arcantina_active_names"] = nil
+        db[mod.key]["arcantina_completed_name"] = nil
+        db[mod.key]["arcantina_completed_names"] = nil
 
         local completedAssignments, activeAssignments = CollectSpecialAssignments()
         local totalAssignments = math.max(#completedAssignments + #activeAssignments, 1)
@@ -262,6 +297,55 @@ MR:RegisterModule({
                     row.countText = nil
                     row.countColor = nil
                     row.note = L["Weekly_SA_Note"]
+                end
+                break
+            end
+        end
+
+        local completedArcantinaWeeklies, activeArcantinaWeeklies = CollectQuestVariants(ARCANTINA_WEEKLIES)
+        if #activeArcantinaWeeklies > 0 then
+            local names = {}
+            for _, variant in ipairs(activeArcantinaWeeklies) do
+                names[#names + 1] = variant.name
+            end
+            db[mod.key]["arcantina_active_name"] = names[1]
+            db[mod.key]["arcantina_active_names"] = table.concat(names, " || ")
+        end
+
+        if #completedArcantinaWeeklies > 0 then
+            local names = {}
+            for _, variant in ipairs(completedArcantinaWeeklies) do
+                names[#names + 1] = variant.name
+            end
+            db[mod.key]["arcantina_weekly"] = 1
+            db[mod.key]["arcantina_completed_name"] = names[1]
+            db[mod.key]["arcantina_completed_names"] = table.concat(names, " || ")
+        else
+            db[mod.key]["arcantina_weekly"] = db[mod.key]["arcantina_weekly"] or 0
+        end
+
+        for _, row in ipairs(mod.rows) do
+            if row.key == "arcantina_weekly" then
+                if #activeArcantinaWeeklies > 1 then
+                    row.countText = string.format(L["Weekly_SA_Count_Active"] or "%d active", #activeArcantinaWeeklies)
+                    row.countColor = { 1, 0.9, 0.3 }
+                    row.note = L["Weekly_Arcantina_Note"]
+                elseif #activeArcantinaWeeklies == 1 then
+                    row.countText = activeArcantinaWeeklies[1].name
+                    row.countColor = { 1, 0.9, 0.3 }
+                    row.note = L["Weekly_Arcantina_Note"]
+                elseif #completedArcantinaWeeklies > 1 then
+                    row.countText = string.format(L["Weekly_SA_Count_Completed"] or "%d done", #completedArcantinaWeeklies)
+                    row.countColor = { 0.4, 0.85, 0.4 }
+                    row.note = L["Weekly_Arcantina_Note"]
+                elseif #completedArcantinaWeeklies == 1 then
+                    row.countText = completedArcantinaWeeklies[1].name
+                    row.countColor = { 0.4, 0.85, 0.4 }
+                    row.note = L["Weekly_Arcantina_Note"]
+                else
+                    row.countText = nil
+                    row.countColor = nil
+                    row.note = L["Weekly_Arcantina_Note"]
                 end
                 break
             end
@@ -371,6 +455,33 @@ MR:RegisterModule({
     end,
 
     rows = {
+        {
+            key      = "arcantina_weekly",
+            label    = L["Weekly_Arcantina_Label"],
+            max      = 1,
+            note     = L["Weekly_Arcantina_Note"],
+            turnInTracked = true,
+            questIds = { 92319, 92321, 92320, 92322, 92323, 92324, 92325, 92326, 92327 },
+            tooltipFunc = function(tip)
+                local completedVariants, activeVariants = CollectQuestVariants(ARCANTINA_WEEKLIES)
+
+                tip:AddLine(" ")
+                if #activeVariants > 0 then
+                    tip:AddLine(L["Tooltip_Active_Week"], 1, 1, 1)
+                    for _, variant in ipairs(activeVariants) do
+                        tip:AddLine("  " .. variant.name, 1, 0.9, 0.3)
+                    end
+                elseif #completedVariants > 0 then
+                    tip:AddLine(L["Tooltip_Done_Completed"], 1, 1, 1)
+                    for _, variant in ipairs(completedVariants) do
+                        tip:AddLine("  " .. variant.name, 0.4, 0.85, 0.4)
+                    end
+                else
+                    tip:AddLine(L["Tooltip_No_Arcantina"], 1, 1, 1)
+                    tip:AddLine(L["Tooltip_Visit_Arcantina"], 0.7, 0.7, 0.7)
+                end
+            end,
+        },
         {
             key      = "halduron_weekly",
             label    = L["Weekly_Halduron_Label"],

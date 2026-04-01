@@ -9,7 +9,10 @@ local DELVERS_BOUNTY_ITEMS = {
 }
 
 local QUEST_DELVERS_BOUNTY_LOOTED = 86371
-local QUEST_DELVERS_BOUNTY_USED   = 87287
+local QUEST_DELVERS_BOUNTY_USED_IDS = {
+    87287,
+    92887,
+}
 local QUEST_NULLAEUS              = 93525
 local L = LibStub("AceLocale-3.0"):GetLocale("MidnightRoutine")
 
@@ -97,6 +100,20 @@ local function GetDelversBountyCount()
     return total
 end
 
+local function IsAnyQuestCompleted(questIds)
+    if not (C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted) then
+        return false
+    end
+
+    for _, questID in ipairs(questIds) do
+        if C_QuestLog.IsQuestFlaggedCompleted(questID) then
+            return true
+        end
+    end
+
+    return false
+end
+
 local bountifulRow
 local bountyRow
 local lastScan = 0
@@ -168,10 +185,7 @@ MR:RegisterModule({
             mdb["delve_bounty_looted"] = bountyLooted
         end
 
-        local bountyUsed = C_QuestLog.IsQuestFlaggedCompleted(QUEST_DELVERS_BOUNTY_USED) and 1 or 0
-        if bountyUsed == 0 and bountyLooted > 0 and bountyCount == 0 then
-            bountyUsed = 1
-        end
+        local bountyUsed = IsAnyQuestCompleted(QUEST_DELVERS_BOUNTY_USED_IDS) and 1 or 0
         if mdb["delve_bounty"] ~= bountyUsed then
             mdb["delve_bounty"] = bountyUsed
         end
@@ -213,7 +227,7 @@ MR:RegisterModule({
             max     = 1,
             note    = L["Delves_Bounty_Note"],
             itemId  = DELVERS_BOUNTY_ITEMS[1],
-            questIds = { QUEST_DELVERS_BOUNTY_USED },
+            questIds = QUEST_DELVERS_BOUNTY_USED_IDS,
             liveKey = "delve_bounty",
         },
         {
