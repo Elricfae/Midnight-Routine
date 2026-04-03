@@ -307,7 +307,7 @@ BuildRaresFrame = function()
     local db         = MR.db and MR.db.profile or {}
     local W          = db.raresWidth  or DEFAULT_W
     local H          = db.raresHeight or DEFAULT_H
-    local alpha      = math.max(db.raresAlpha or 1.0, 0.3)
+    local alpha      = math.max(0, math.min(db.raresAlpha or 1.0, 1.0))
     local minimized  = db.raresMinimized or false
     local visible    = GetVisibleZones()
     local singleZone = #visible == 1

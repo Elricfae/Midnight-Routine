@@ -139,6 +139,34 @@ local function IsQuestCurrentlyActive(questId)
     return false
 end
 
+local function UpdateRotatingWeeklyQuestState(progressBucket, row, questId)
+    if type(progressBucket) ~= "table" or type(row) ~= "table" or not row.key or not questId then
+        return false, false
+    end
+
+    local seenKey = row.key .. "_seen_active"
+    local isActive = IsQuestCurrentlyActive(questId)
+    local isCompleted = C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(questId) or false
+    local wasDone = (tonumber(progressBucket[row.key]) or 0) > 0
+
+    if isActive then
+        progressBucket[seenKey] = true
+    end
+
+    local isDone = wasDone
+    if isCompleted and (isActive or progressBucket[seenKey]) then
+        isDone = true
+    elseif not isActive and not wasDone then
+        isDone = false
+    end
+
+    progressBucket[row.key] = isDone and 1 or 0
+    row.countText = isDone and (L["Done"] or "Done") or (isActive and (L["Weekly_SA_Count_ActiveSingle"] or "Active") or nil)
+    row.countColor = isDone and { 0.4, 0.85, 0.4 } or (isActive and { 1, 0.9, 0.3 } or nil)
+
+    return isActive, isDone
+end
+
 local function CollectSpecialAssignments()
     local completed = {}
     local active = {}
@@ -397,6 +425,13 @@ MR:RegisterModule({
             end
         end
 
+        for _, row in ipairs(mod.rows) do
+            if row.key == "call_to_delves" then
+                UpdateRotatingWeeklyQuestState(db[mod.key], row, 93595)
+                break
+            end
+        end
+
         local activeUATVBranch = FindActiveQuestVariant(UATV_BRANCHES)
         db[mod.key]["uatv_branch_name"] = activeUATVBranch and activeUATVBranch.name or nil
         db[mod.key]["uatv_branch_quest"] = activeUATVBranch and activeUATVBranch.quest or nil
@@ -513,7 +548,10 @@ MR:RegisterModule({
             label    = L["Weekly_CallToDelves_Label"],
             max      = 1,
             note     = L["Delves_Call_Note"],
-            questIds = { 93595 },
+            isVisible = function()
+                local mdb = MR and MR.db and MR.db.char and MR.db.char.progress and MR.db.char.progress["s1_weekly"]
+                return IsQuestCurrentlyActive(93595) or ((mdb and tonumber(mdb["call_to_delves"])) or 0) > 0
+            end,
         },
         {
             key      = "abundance",

@@ -444,8 +444,17 @@ local function BuildGatheringLocationsFrame(isRetry)
     titleBar:SetScript("OnDragStart", function() if not db.gatheringLocked then frame:StartMoving() end end)
     titleBar:SetScript("OnDragStop", function()
         frame:StopMovingOrSizing()
+        local left = frame:GetLeft()
+        local top = frame:GetTop()
+        if left and top and MR.db then
+            MR:SetWindowLayoutValue("gatheringLocPos", { point = "TOPLEFT", relPoint = "BOTTOMLEFT", x = left, y = top })
+            return
+        end
+
         local point, _, relPoint, x, y = frame:GetPoint()
-        if MR.db then MR:SetWindowLayoutValue("gatheringLocPos", { point = point, relPoint = relPoint, x = x, y = y }) end
+        if MR.db then
+            MR:SetWindowLayoutValue("gatheringLocPos", { point = point, relPoint = relPoint, x = x, y = y })
+        end
     end)
     if MR.ApplyPanelHeaderAutoHide then MR:ApplyPanelHeaderAutoHide(frame, titleBar) end
 
