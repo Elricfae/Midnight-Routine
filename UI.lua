@@ -64,6 +64,24 @@ local function RefreshFonts()
     FONT_HEADERS = ns.FONT_HEADERS or FONT_HEADERS or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 end
 
+local function GetMainHeaderHeight()
+    return math.max(28, GetFontSize() + 16)
+end
+
+local function GetMainHeaderMetrics()
+    local fontSize = GetFontSize()
+    local headerHeight = GetMainHeaderHeight()
+    return {
+        fontSize = fontSize,
+        headerHeight = headerHeight,
+        iconSize = math.max(14, fontSize + 2),
+        buttonSize = math.max(16, fontSize + 3),
+        buttonPad = 3,
+        buttonMargin = 6,
+        warbandWidth = math.max(34, fontSize * 3),
+    }
+end
+
 local PEEK_ALPHA_IDLE   = 0.0    
 local PEEK_ALPHA_HOVER  = 1.0   
 local PEEK_FADE_IN      = 6.0    
@@ -205,13 +223,76 @@ end
 
 local MODULE_ICON_FALLBACKS = {
     currencies          = { texture = "Interface\\Icons\\INV_Misc_Coin_17" },
-    great_vault         = { texture = "Interface\\Icons\\INV_Misc_TreasureChest04d" },
     midnight_activities = { texture = "Interface\\Icons\\Ability_Creature_Cursed_04" },
     pvp_currencies      = { texture = "Interface\\TargetingFrame\\UI-PVP-FFA" },
     pvp_weeklies        = { texture = "Interface\\TargetingFrame\\UI-PVP-HORDE" },
     lfr_s1              = { texture = "Interface\\LFGFrame\\LFGICON-RAIDFINDER" },
     s1_weekly           = { texture = "Interface\\Icons\\INV_Misc_Note_01" },
+    world_bosses        = { texture = "Interface\\Icons\\Ability_Hunter_BeastCall" },
+    timewalking         = { texture = "Interface\\Icons\\Achievement_Quests_Completed_08" },
+    prof_alchemy        = { texture = "Interface\\Icons\\Trade_Alchemy" },
+    prof_blacksmithing  = { texture = "Interface\\Icons\\Trade_BlackSmithing" },
+    prof_enchanting     = { texture = "Interface\\Icons\\Trade_Engraving" },
+    prof_engineering    = { texture = "Interface\\Icons\\Trade_Engineering" },
+    prof_herbalism      = { texture = "Interface\\Icons\\Trade_Herbalism" },
+    prof_inscription    = { texture = "Interface\\Icons\\INV_Inscription_Tradeskill01" },
+    prof_jewelcrafting  = { texture = "Interface\\Icons\\INV_Misc_Gem_01" },
+    prof_leatherworking = { texture = "Interface\\Icons\\INV_Misc_ArmorKit_17" },
+    prof_mining         = { texture = "Interface\\Icons\\Trade_Mining" },
+    prof_skinning       = { texture = "Interface\\Icons\\INV_Misc_Pelt_Wolf_01" },
+    prof_tailoring      = { texture = "Interface\\Icons\\Trade_Tailoring" },
+    skin_lures          = { texture = "Interface\\Icons\\INV_Misc_Food_50" },
 }
+
+local MODULE_HEADER_ICON_KEYS = {
+    currencies = true,
+    delves = true,
+    great_vault = true,
+    midnight_activities = true,
+    prey = true,
+    pvp_currencies = true,
+    pvp_weeklies = true,
+    lfr_s1 = true,
+    s1_weekly = true,
+    world_bosses = true,
+    prof_alchemy = true,
+    prof_blacksmithing = true,
+    prof_enchanting = true,
+    prof_engineering = true,
+    prof_herbalism = true,
+    prof_inscription = true,
+    prof_jewelcrafting = true,
+    prof_leatherworking = true,
+    prof_mining = true,
+    prof_skinning = true,
+    prof_tailoring = true,
+    skin_lures = true,
+}
+
+local function ShouldShowModuleHeaderIcon(modKey)
+    if type(modKey) == "string" and modKey:match("^story_campaign_") then
+        return true
+    end
+
+    return MODULE_HEADER_ICON_KEYS[modKey] == true
+end
+
+local function GetModuleFallbackIconInfo(modKey)
+    if not modKey or modKey == "" then
+        return nil
+    end
+
+    local exact = MODULE_ICON_FALLBACKS[modKey]
+    if exact then
+        return exact
+    end
+
+    if modKey:match("^story_campaign_") then
+        return { texture = "Interface\\GossipFrame\\AvailableQuestIcon" }
+    end
+
+    return nil
+end
 
 local ROW_ICON_FALLBACKS = {
     vault_raid          = { texture = "Interface\\LFGFrame\\LFGICON-RAIDFINDER" },
@@ -291,12 +372,19 @@ local function GetRowIconInfo(mod, row)
         return fallback
     end
 
-    return MODULE_ICON_FALLBACKS[mod and mod.key or ""]
+    return GetModuleFallbackIconInfo(mod and mod.key or "")
 end
 
 local function GetModuleIconInfo(mod)
     if not mod then
         return nil
+    end
+
+    if mod.key == "great_vault" then
+        local keyIcon = GetRowIconInfo(nil, { currencyId = 3028 })
+        if keyIcon then
+            return keyIcon
+        end
     end
 
     local explicit = NormalizeIconInfo(mod.icon)
@@ -313,7 +401,7 @@ local function GetModuleIconInfo(mod)
         end
     end
 
-    return MODULE_ICON_FALLBACKS[mod.key]
+    return GetModuleFallbackIconInfo(mod.key)
 end
 
 local function ApplyIconToTexture(texture, info, fallbackTexCoord)
@@ -1474,7 +1562,11 @@ local function ApplyFontSize(newSize)
     newSize = math.max(FONT_SIZE_MIN, math.min(FONT_SIZE_MAX, math.floor(newSize)))
     MR.db.profile.fontSize = newSize
     RecalcLayout()
-    MR:RefreshUI()
+    if MR.ApplySharedMediaSettings then
+        MR:ApplySharedMediaSettings()
+    else
+        MR:RefreshUI()
+    end
 end
 MR.ApplyFontSize = ApplyFontSize
 
@@ -1679,6 +1771,7 @@ function MR:BuildUI()
         f:Hide()
         MR.db.char.panelOpen = false
     end)
+    self.closeBtn = closeBtn
 
     local minBtn = MakeHeaderBtn(
         { text = "-" },
@@ -1823,6 +1916,30 @@ function MR:BuildUI()
     title:SetPoint("LEFT", titleIcon, "RIGHT", 5, 0)
     title:SetPoint("RIGHT", titleCount, "LEFT", -8, 0)
     title:SetJustifyH("LEFT")
+
+    local function RefreshMainHeaderChrome()
+        local metrics = GetMainHeaderMetrics()
+        titleBar:SetHeight(metrics.headerHeight)
+        titleIcon:SetSize(metrics.iconSize, metrics.iconSize)
+        closeBtn:SetSize(metrics.buttonSize, metrics.buttonSize)
+        minBtn:SetSize(metrics.buttonSize, metrics.buttonSize)
+        cfgBtn:SetSize(metrics.buttonSize, metrics.buttonSize)
+        warbandBtn:SetSize(metrics.warbandWidth, metrics.buttonSize)
+        if cfgBtn._iconTex then
+            cfgBtn._iconTex:SetSize(metrics.buttonSize - 5, metrics.buttonSize - 5)
+        end
+        if closeBtn._lbl then
+            closeBtn._lbl:SetFont(FONT_HEADERS, math.max(8, metrics.fontSize - 1), "OUTLINE")
+        end
+        if minBtn._lbl then
+            minBtn._lbl:SetFont(FONT_HEADERS, math.max(8, metrics.fontSize - 1), "OUTLINE")
+        end
+        title:SetFont(FONT_HEADERS, math.max(10, metrics.fontSize), "OUTLINE")
+        titleCount:SetFont(FONT_ROWS, math.max(8, metrics.fontSize - 2), "OUTLINE")
+        warbandText:SetFont(FONT_HEADERS, math.max(8, metrics.fontSize - 2), "OUTLINE")
+    end
+    self.RefreshMainHeaderChrome = RefreshMainHeaderChrome
+    RefreshMainHeaderChrome()
 
     local expansionDropdown = BuildExpansionDropdown(f, false, {
         width = 150,
@@ -2426,6 +2543,9 @@ function MR:ApplySharedMediaSettings()
     if self._titleBar and ns.RefreshFrameBackground then
         ns.RefreshFrameBackground(self._titleBar)
     end
+    if self.RefreshMainHeaderChrome then
+        self:RefreshMainHeaderChrome()
+    end
     self:RefreshUI()
 
     if self.RebuildRaresFrame then self:RebuildRaresFrame() end
@@ -2573,28 +2693,35 @@ function MR:BuildSection(mod, yOff, xOff, colW, col, parent, widgetBucket, opts)
     hdrHover:SetAllPoints()
     hdrHover:SetColorTexture(1, 1, 1, 0)
 
-    local accent = hdrFrame:CreateTexture(nil, "ARTWORK")
-    accent:SetPoint("TOPLEFT")
-    accent:SetSize(3, HEADER_HEIGHT)
+    local explicitColor = MR.db.profile.headerColors and MR.db.profile.headerColors[mod.key]
+    local customColor = MR:GetHeaderColor(mod.key)
+    local headerColor = customColor or mod.labelColor or "#ffffff"
+    local lr,lg,lb = hex(headerColor)
     local accentA = transparent and 0 or frameAlpha
+    local accentR, accentG, accentB = lr, lg, lb
     if allDone then
-        accent:SetColorTexture(COL.complete[1], COL.complete[2], COL.complete[3], accentA)
-    else
-        local customColor = MR:GetHeaderColor(mod.key)
-        local lr,lg,lb = hex(customColor or mod.labelColor or "#ffffff")
-        accent:SetColorTexture(lr, lg, lb, accentA)
+        accentR, accentG, accentB = COL.complete[1], COL.complete[2], COL.complete[3]
     end
 
-    local iconInfo = transparent and nil or GetModuleIconInfo(mod)
+    local iconPlate = CreateFrame("Frame", nil, hdrFrame, "BackdropTemplate")
+    iconPlate:SetSize(math.max(HEADER_HEIGHT - 6, 12), math.max(HEADER_HEIGHT - 6, 12))
+    iconPlate:SetPoint("LEFT", hdrFrame, "LEFT", 4, 0)
+    iconPlate:SetBackdrop(MakeBackdrop())
+    iconPlate:SetBackdropColor(accentR, accentG, accentB, transparent and 0 or (0.16 * frameAlpha))
+    iconPlate:SetBackdropBorderColor(accentR, accentG, accentB, transparent and 0 or (0.50 * frameAlpha))
+
+    local iconInfo = (not transparent and ShouldShowModuleHeaderIcon(mod.key)) and GetModuleIconInfo(mod) or nil
     local icon = hdrFrame:CreateTexture(nil, "ARTWORK")
     icon:SetSize(math.max(HEADER_HEIGHT - 12, 9), math.max(HEADER_HEIGHT - 12, 9))
-    icon:SetPoint("LEFT", hdrFrame, "LEFT", 7, 0)
+    icon:SetPoint("CENTER", iconPlate, "CENTER", 0, 0)
     local hasHeaderIcon = ApplyIconToTexture(icon, iconInfo, { 0.14, 0.86, 0.14, 0.86 })
+    iconPlate:SetShown(hasHeaderIcon)
 
     local lbl = hdrFrame:CreateFontString(nil, "OVERLAY")
     lbl:SetFont(FONT_HEADERS, math.max(9, GetFontSize()), "OUTLINE")
+    lbl:ClearAllPoints()
     if hasHeaderIcon then
-        lbl:SetPoint("LEFT", icon, "RIGHT", 3, 0)
+        lbl:SetPoint("LEFT", iconPlate, "RIGHT", 6, 0)
     else
         lbl:SetPoint("LEFT", hdrFrame, "LEFT", 9, 0)
     end
@@ -2602,12 +2729,9 @@ function MR:BuildSection(mod, yOff, xOff, colW, col, parent, widgetBucket, opts)
     if lbl.SetWordWrap then
         lbl:SetWordWrap(false)
     end
-    local customColor = MR:GetHeaderColor(mod.key)
-
-    local explicitColor = MR.db.profile.headerColors and MR.db.profile.headerColors[mod.key]
     lbl:SetText((allDone and not explicitColor)
         and WC("00ff96", mod.label)
-        or  WC((customColor or mod.labelColor or "#ffffff"):gsub("#",""), mod.label))
+        or  WC(headerColor:gsub("#",""), mod.label))
 
     local cnt = hdrFrame:CreateFontString(nil, "OVERLAY")
     cnt:SetFont(FONT_ROWS, math.max(7, GetFontSize() - 2), "OUTLINE")
@@ -2913,7 +3037,9 @@ function MR:BuildRow(mod, row, done, yOff, collapsed, xOff, colW, parent, widget
         end)
     end
 
-    local rowIconInfo = transparent and nil or GetRowIconInfo(mod, row)
+    local isCurrencyModule = mod and (mod.key == "currencies" or mod.key == "pvp_currencies")
+    local showRowIcon = (not transparent) and isCurrencyModule
+    local rowIconInfo = showRowIcon and GetRowIconInfo(mod, row) or nil
     local iconSize = math.max(ROW_HEIGHT - 8, 12)
     local rowIcon = rowFrame:CreateTexture(nil, "ARTWORK")
     rowIcon:SetSize(iconSize, iconSize)
@@ -4163,10 +4289,7 @@ function MR:PopulateConfigFrame(f)
     if activePage == "reset" then
         SectionLabel(L["RESETS"])
         Btn(L["Config_ResetEverything"], function()
-            MR.db.char.progress = {}
-            MR.db.profile.headerColors = {}
-            MR.db.profile.rowColors = {}
-            MR:Scan()
+            MR:ResetAllSettings()
             MR:PopulateConfigFrame(f)
         end)
         Btn(L["Config_ResetColors"], function()

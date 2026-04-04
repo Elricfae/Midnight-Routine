@@ -147,6 +147,19 @@ local function MergeMissing(dst, src)
     return dst
 end
 
+local function RestoreDefaults(dst, src)
+    if type(dst) ~= "table" or type(src) ~= "table" then
+        return dst
+    end
+
+    wipe(dst)
+    for k, v in pairs(src) do
+        dst[k] = DeepCopy(v)
+    end
+
+    return dst
+end
+
 local function IsTableEmpty(t)
     return type(t) ~= "table" or next(t) == nil
 end
@@ -1606,6 +1619,31 @@ function MR:OnInitialize()
     if ns.ApplySharedMedia then
         ns.ApplySharedMedia(self.GetActiveMediaSettings and self:GetActiveMediaSettings() or self.db.profile)
     end
+end
+
+function MR:ResetAllSettings()
+    if not self.db then
+        return
+    end
+
+    RestoreDefaults(self.db.profile, DEFAULTS.profile)
+    RestoreDefaults(self.db.char, DEFAULTS.char)
+
+    self._orderedModulesCache = nil
+    self._moduleStatsCache = nil
+
+    if ns.ApplySharedMedia then
+        ns.ApplySharedMedia(self.GetActiveMediaSettings and self:GetActiveMediaSettings() or self.db.profile)
+    end
+    if self.ApplySharedMediaSettings then
+        self:ApplySharedMediaSettings()
+    else
+        self:RefreshUI()
+    end
+
+    self:ScheduleTimer(function()
+        self:Scan()
+    end, 0.05)
 end
 
 function MR:MigrateLegacySettings()
